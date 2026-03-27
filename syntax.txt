@@ -1,0 +1,5 @@
+int : int, i32, i8, u8, u16, u64, i64
+float : f32, f64
+boolean : bool
+characters : char
+strings : str

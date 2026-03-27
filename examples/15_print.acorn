@@ -1,0 +1,9 @@
+// Print and println
+main :: fn() -> int {
+    print("Hello")
+    println("World")
+    print(42)
+    println(3.14)
+    
+    return 0
+}

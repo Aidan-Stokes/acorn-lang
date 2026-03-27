@@ -1,0 +1,18 @@
+// Pointer types with ^ dereference syntax
+main :: fn() -> int {
+    // Integer pointer (int is usize_t)
+    x: int <- 42
+    y: ^int <- &x
+    z: int <- y^
+    print(x)  // prints 42
+    print(z)  // prints 42
+
+    // Float pointer
+    f: f32 <- 3.14
+    fp: ^f32 <- &f
+    fd: f32 <- fp^
+    print(f)   // prints 3.14
+    print(fd)  // prints 3.14
+
+    return 0
+}

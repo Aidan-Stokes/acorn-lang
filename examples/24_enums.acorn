@@ -1,0 +1,9 @@
+main :: fn() -> int {
+    TokenType :: enum {
+        Int,
+        Float,
+        String,
+    }
+    print("Enum done")
+    return 0
+}

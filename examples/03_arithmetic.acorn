@@ -1,0 +1,16 @@
+// Arithmetic expressions
+main :: fn() -> int {
+    a <- 10
+    b <- 3
+    
+    print(a + b)   // 13
+    print(a - b)   // 7
+    print(a * b)   // 30
+    print(a / b)   // 3
+    print(a % b)   // 1
+    
+    result <- (a + b) * 2 - 5
+    print(result)  // 21
+    
+    return 0
+}

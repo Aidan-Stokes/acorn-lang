@@ -1,0 +1,46 @@
+// Character literals in Acorn
+// Characters are single-byte values (like ASCII)
+
+main :: fn() {
+    // Basic characters
+    print('A');
+    print('\n');
+    
+    // Escape sequences
+    print('H');
+    print('i');
+    print('\n');
+    
+    // Tab character
+    print('T');
+    print('\t');
+    print('B');
+    print('\n');
+    
+    // Newline
+    print('\n');
+    
+    // Backslash
+    print('\\');
+    print('\n');
+    
+    // Quote
+    print('\'');
+    print('\n');
+    
+    // Null character (prints as 0)
+    print('\0');
+    print('\n');
+    
+    // Hex escape \xNN
+    print('\x41');  // 'A' (ASCII 65)
+    print('\x42');  // 'B' (ASCII 66)
+    print('\x43');  // 'C' (ASCII 67)
+    print('\n');
+    
+    // Characters have integer values
+    print(65);      // ASCII 'A'
+    print('\n');
+    print(97);       // ASCII 'a'
+    print('\n');
+}

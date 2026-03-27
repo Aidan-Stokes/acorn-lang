@@ -1,0 +1,21 @@
+// Break and continue
+main :: fn() -> int {
+    // Test break
+    for i in 0..5 {
+        if (i == 3) {
+            break
+        }
+        print(i)  // prints 0, 1, 2
+    }
+    
+    // Test continue
+    print("---")
+    for i in 0..5 {
+        if (i == 2) {
+            continue
+        }
+        print(i)  // prints 0, 1, 3, 4, 5
+    }
+    
+    return 0
+}

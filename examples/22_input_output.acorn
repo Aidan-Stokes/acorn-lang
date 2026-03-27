@@ -1,0 +1,16 @@
+// Input and Output in Acorn
+// read_line() reads a line from stdin
+// input() is an alias for read_line()
+// printf() for formatted output
+
+main :: fn() {
+    // Simple input
+    printf("Enter your name: ");
+    name <- read_line();
+    printf("Hello %s!\n", name);
+
+    // Multiple inputs
+    printf("Enter age: ");
+    age <- read_line();
+    printf("You entered: %s\n", age);
+}

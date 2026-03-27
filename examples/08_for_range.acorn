@@ -1,0 +1,10 @@
+// For loops - range
+main :: fn() -> int {
+    // Range loop: 0 to 10 (inclusive)
+    print("Range 0..3:")
+    for i in 0..3 {
+        print(i)  // prints 0, 1, 2, 3
+    }
+    
+    return 0
+}

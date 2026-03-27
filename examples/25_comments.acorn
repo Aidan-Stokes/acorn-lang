@@ -1,0 +1,26 @@
+// Comments Example
+// This file demonstrates single-line and block comments
+
+main :: fn() -> int {
+    // Single-line comments start with //
+    print("Comments demo")
+    println("")
+    
+    /* Block comments can span
+       multiple lines and are useful
+       for longer explanations */
+    
+    x <- 42  // or at the end of a line
+    
+    print("x = ")
+    print(x)
+    println("")
+    
+    /* Block comments can also be inline */ print("Inline!")
+    println("")
+    
+    print("Done!")
+    println("")
+    
+    return 0
+}

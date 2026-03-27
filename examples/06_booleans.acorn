@@ -1,0 +1,15 @@
+// Boolean literals
+main :: fn() -> int {
+    flag <- true
+    
+    if (flag) {
+        print(1)  // prints 1
+    }
+    
+    flag <- false
+    if (!flag) {
+        print(0)  // prints 0
+    }
+    
+    return 0
+}

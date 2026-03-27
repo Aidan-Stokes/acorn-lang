@@ -1,0 +1,15 @@
+// Comparison operators
+main :: fn() -> int {
+    x <- 10
+    y <- 20
+    
+    // Comparison operators return 1 (true) or 0 (false)
+    print(x == y)  // 0
+    print(x != y)  // 1
+    print(x < y)   // 1
+    print(x <= y)  // 1
+    print(x > y)   // 0
+    print(x >= y)  // 0
+    
+    return 0
+}

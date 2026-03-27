@@ -1,0 +1,11 @@
+// 28_colored_errors_error.acorn
+// This file has a type error to demonstrate red error output
+//
+// Run: ./acorn check 28_colored_errors_error.acorn
+// You should see red error output
+
+main :: fn() -> int {
+    // ERROR: cannot assign string to int
+    x: int <- "hello"
+    return 0
+}

@@ -1,0 +1,35 @@
+// 28_colored_errors.acorn
+// Demonstrates colored compiler output
+//
+// Run these commands to see colors:
+//   ./acorn check 28_colored_errors.acorn      (green = success)
+//   ./acorn check 28_colored_errors_error.acorn  (red = type error)
+//
+// To test error colors, uncomment the bad line below and run:
+//   ./acorn check 28_colored_errors.acorn
+
+main :: fn() -> int {
+    // This will compile successfully
+    x <- 10
+    y <- 20
+    print(x + y)
+    return 0
+}
+
+/*
+To see colored errors:
+
+1. Create a file with a type error:
+   echo 'main :: fn() -> int { x: int <- "hello"; return 0 }' > error.acorn
+
+2. Run the type checker:
+   ./acorn check error.acorn
+   (You'll see red error message)
+
+3. Fix the error:
+   echo 'main :: fn() -> int { x: int <- 42; return 0 }' > error.acorn
+
+4. Run again:
+   ./acorn check error.acorn
+   (You'll see green success message)
+*/

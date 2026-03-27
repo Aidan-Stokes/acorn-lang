@@ -1,0 +1,43 @@
+// Basic types in Acorn
+main :: fn() -> int {
+    // Integer types
+    // int is usize_t equivalent (u64 on 64-bit)
+    // u is platform unsigned (u64 on 64-bit)
+    a: int <- 42
+    b: u <- 100
+    c: i32 <- 100
+    d: i16 <- 1000
+    e: i8 <- 5
+    f: u8 <- 200
+    g: i64 <- 1000000
+    
+    // Float types
+    h: f32 <- 3.14
+    i: f64 <- 2.71828
+    
+    // Boolean
+    j: bool <- true
+    
+    // Character and rune
+    k: char <- 65
+    l: rune <- 9731  // ☃
+    
+    // String
+    s: string <- "Hello"
+    
+    print(a)   // 42
+    print(b)   // 100
+    print(c)   // 100
+    print(d)   // 1000
+    print(e)   // 5
+    print(f)   // 200
+    print(g)   // 1000000
+    print(h)   // 3.14
+    print(i)   // 2.71828
+    print(j)   // 1 (true)
+    print(k)   // 65
+    print(l)   // 9731
+    print(s)   // Hello
+    
+    return 0
+}

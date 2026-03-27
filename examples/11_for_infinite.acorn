@@ -1,0 +1,16 @@
+// For loops - infinite loop with break
+main :: fn() -> int {
+    n <- 0
+    
+    // Infinite loop
+    for {
+        n <- n + 1
+        if (n >= 3) {
+            break
+        }
+    }
+    
+    print(n)  // prints 3
+    
+    return 0
+}

@@ -1,0 +1,33 @@
+// Raw Strings Example
+// Raw strings use backticks and don't process escape sequences
+
+main :: fn() -> int {
+    // Regular string - \n is a newline
+    print("Regular string with \\n escape:")
+    print("\n")
+    
+    // Raw string - \n is literal backslash followed by n
+    print("Raw string with \\n literal:")
+    print(`\n`)
+    print("")
+    
+    // Windows paths are easy with raw strings
+    path <- `C:\Users\John\Documents\file.txt`
+    print("Windows path: ")
+    print(path)
+    print("")
+    
+    // Regex patterns are easier
+    pattern <- `https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
+    print("Regex pattern: ")
+    print(pattern)
+    print("")
+    
+    // JSON-like content
+    json <- `{"name": "Acorn", "version": "1.0"}`
+    print("JSON: ")
+    print(json)
+    print("")
+    
+    return 0
+}

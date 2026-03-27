@@ -1,0 +1,26 @@
+// printf-style formatting in Acorn
+// Supports: %d (integer), %f (float), %s (string), %%, \n (newline)
+
+main :: fn() {
+    // Integer formatting
+    printf("x = %d\n", 42);
+    printf("a = %d, b = %d\n", 10, 20);
+
+    // Float formatting
+    printf("pi = %f\n", 3.14159);
+    printf("e = %f\n", 2.71828);
+
+    // String formatting
+    printf("Hello %s!\n", "World");
+    printf("Name: %s, Age: %d\n", "Alice", 25);
+
+    // Mixed formatting
+    printf("Sum of %d and %d is %d\n", 5, 3, 8);
+
+    // Escape sequences
+    printf("Tab:\tEnd\n");
+    printf("Percent sign: %% and newline below:\n");
+
+    // Scientific notation
+    printf("Big: %f, Small: %f\n", 1e10, 1e-5);
+}

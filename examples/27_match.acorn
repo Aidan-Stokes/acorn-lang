@@ -1,0 +1,9 @@
+Color :: enum { Red, Green, Blue }
+main :: fn() -> int {
+    x <- Color.Green
+    match x {
+        Color.Red => print("Red")
+        Color.Green => print("Green")
+    }
+    return 0
+}

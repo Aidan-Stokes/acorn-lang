@@ -1,0 +1,5 @@
+// Function declaration with `fn` keyword and double colon
+main :: fn() -> int {
+    print("Hello, World!")
+    return 0
+}

@@ -1,0 +1,11 @@
+Point :: struct { x: int, y: int }
+
+main :: fn() -> int {
+    p: Point <- Point{x: 10, y: 20}
+    print("Point: (")
+    print(p.x)
+    print(", ")
+    print(p.y)
+    println(")")
+    return 0
+}
