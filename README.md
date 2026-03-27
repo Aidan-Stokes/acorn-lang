@@ -69,7 +69,7 @@ Download from the releases page.
 
 ### Build from Source
 ```bash
-git clone https://github.com/Aidan-Stokes/acorn.git
+git clone https://github.com/Aidan-Stokes/acorn-lang.git
 cd acorn
 odin build . -build-mode:exe -file
 sudo cp acorn /usr/local/bin/
