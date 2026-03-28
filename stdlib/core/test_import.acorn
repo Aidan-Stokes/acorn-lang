@@ -1,0 +1,4 @@
+main :: fn() -> int {
+    print("test")
+    return 0
+}

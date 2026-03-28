@@ -1,0 +1,42 @@
+import "core:strings"
+
+println :: fn(msg: string) {
+    print(msg)
+    print("\n")
+}
+
+print_int :: fn(x: int) {
+    print(strings.from_int(x))
+}
+
+print_f64 :: fn(x: f64) {
+    print(strings.from_f64(x))
+}
+
+print_bool :: fn(b: bool) {
+    if (b) {
+        print("true")
+    } else {
+        print("false")
+    }
+}
+
+println_int :: fn(x: int) {
+    println(strings.from_int(x))
+}
+
+println_f64 :: fn(x: f64) {
+    println(strings.from_f64(x))
+}
+
+println_bool :: fn(b: bool) {
+    if (b) {
+        println("true")
+    } else {
+        println("false")
+    }
+}
+
+format :: fn(format: string, args: [?]any) -> string
+
+sprintf :: fn(format: string, args: [?]any) -> string

@@ -1,0 +1,9 @@
+read_line :: fn() -> string
+
+exit :: fn(code: int) -> 
+
+read_file :: fn(path: string) -> string
+
+write_file :: fn(path: string, content: string) -> bool
+
+file_exists :: fn(path: string) -> bool

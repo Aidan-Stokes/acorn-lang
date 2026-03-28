@@ -1,0 +1,103 @@
+len :: fn(s: string) -> int
+
+concat :: fn(a: string, b: string) -> string
+
+contains :: fn(s: string, substr: string) -> bool {
+    if (len(substr) == 0) {
+        return true
+    }
+    if (len(s) < len(substr)) {
+        return false
+    }
+    i <- 0
+    for i <= len(s) - len(substr) {
+        found <- true
+        j <- 0
+        for j < len(substr) {
+            if (s[i + j] != substr[j]) {
+                found <- false
+                break
+            }
+            j <- j + 1
+        }
+        if (found) {
+            return true
+        }
+        i <- i + 1
+    }
+    return false
+}
+
+starts_with :: fn(s: string, prefix: string) -> bool {
+    if (len(prefix) > len(s)) {
+        return false
+    }
+    i <- 0
+    for i < len(prefix) {
+        if (s[i] != prefix[i]) {
+            return false
+        }
+        i <- i + 1
+    }
+    return true
+}
+
+ends_with :: fn(s: string, suffix: string) -> bool {
+    if (len(suffix) > len(s)) {
+        return false
+    }
+    offset <- len(s) - len(suffix)
+    i <- 0
+    for i < len(suffix) {
+        if (s[offset + i] != suffix[i]) {
+            return false
+        }
+        i <- i + 1
+    }
+    return true
+}
+
+index_of :: fn(s: string, substr: string) -> int {
+    if (len(substr) == 0) {
+        return 0
+    }
+    if (len(s) < len(substr)) {
+        return -1
+    }
+    i <- 0
+    for i <= len(s) - len(substr) {
+        found <- true
+        j <- 0
+        for j < len(substr) {
+            if (s[i + j] != substr[j]) {
+                found <- false
+                break
+            }
+            j <- j + 1
+        }
+        if (found) {
+            return i
+        }
+        i <- i + 1
+    }
+    return -1
+}
+
+to_upper :: fn(s: string) -> string
+to_lower :: fn(s: string) -> string
+
+trim :: fn(s: string) -> string
+trim_left  :: fn(s: string) -> string
+trim_right :: fn(s: string) -> string
+
+replace :: fn(s: string, old: string, new: string) -> string
+
+split :: fn(s: string, delim: string) -> [string]
+
+join :: fn(arr: [string], sep: string) -> string
+
+from_int :: fn(x: int) -> string
+from_f64 :: fn(x: f64) -> string
+
+to_int    :: fn(s: string) -> int
+to_f64    :: fn(s: string) -> f64
