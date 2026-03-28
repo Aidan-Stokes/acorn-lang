@@ -18,6 +18,7 @@ Scope :: struct {
     parent:   ^Scope,
     struct_:  map[string]struct_fields,
     enum_:    map[string][]string,
+    imports_: map[string][]^ast.Node,
 }
 
 struct_fields :: map[string]^ast.Type_Info
@@ -26,19 +27,24 @@ struct_fields :: map[string]^ast.Type_Info
 current_scope: ^Scope
 @(private)
 root_scope: Scope
+@(private)
+global_consts: map[string]^ast.Type_Info
 
 init :: proc() {
     clear(&errors)
+    global_consts = make(map[string]^ast.Type_Info)
     root_scope = Scope{
         vars = make(map[string]^ast.Type_Info),
         struct_ = make(map[string]struct_fields),
         enum_ = make(map[string][]string),
+        imports_ = make(map[string][]^ast.Node),
     }
     current_scope = &root_scope
     setup_builtins()
 }
 
 destroy :: proc() {
+    delete(global_consts)
     free_scope(&root_scope)
 }
 
@@ -86,6 +92,36 @@ free_scope :: proc(s: ^Scope) {
     }
     delete(s.struct_)
     delete(s.enum_)
+    delete(s.imports_)
+}
+
+get_module_name :: proc(import_path: string) -> string {
+    if strings.has_prefix(import_path, "core:") {
+        return strings.trim_prefix(import_path, "core:")
+    }
+    if strings.has_prefix(import_path, "lib:") {
+        return strings.trim_prefix(import_path, "lib:")
+    }
+    for i := len(import_path) - 1; i >= 0; i -= 1 {
+        if import_path[i] == '/' || import_path[i] == '\\' {
+            return import_path[i+1:]
+        }
+    }
+    idx := 0
+    for i in 0..<len(import_path) {
+        if import_path[i] == ':' {
+            idx = i + 1
+        }
+    }
+    if idx > 0 {
+        return import_path[idx:]
+    }
+    for i := len(import_path) - 1; i >= 0; i -= 1 {
+        if import_path[i] == '.' {
+            return import_path[:i]
+        }
+    }
+    return import_path
 }
 
 push_scope :: proc() {
@@ -94,6 +130,7 @@ push_scope :: proc() {
     new_scope.vars = make(map[string]^ast.Type_Info)
     new_scope.struct_ = make(map[string]struct_fields)
     new_scope.enum_ = make(map[string][]string)
+    new_scope.imports_ = make(map[string][]^ast.Node)
     current_scope = new_scope
 }
 
@@ -155,6 +192,24 @@ lookup_enum :: proc(name: string) -> ([]string, bool) {
     return nil, false
 }
 
+lookup_global :: proc(name: string) -> ^ast.Type_Info {
+    if t, ok := global_consts[name]; ok {
+        return t
+    }
+    return nil
+}
+
+is_module_import :: proc(module_name: string) -> bool {
+    scope := current_scope
+    for scope != nil {
+        if _, ok := scope.imports_[module_name]; ok {
+            return true
+        }
+        scope = scope.parent
+    }
+    return false
+}
+
 is_numeric :: proc(t: ^ast.Type_Info) -> bool {
     if t == nil do return false
     return t.kind == .Int || t.kind == .Named && (t.name == "f32" || t.name == "f64")
@@ -198,10 +253,32 @@ get_line :: proc(node: ^ast.Node) -> int {
     return 0
 }
 
+@(private)
+module_members: map[string]map[string]^ast.Type_Info
+
 check_program :: proc(prog: ^ast.Program) -> bool {
     init()
+    module_members = make(map[string]map[string]^ast.Type_Info)
+    defer {
+        for _, members in module_members {
+            delete(members)
+        }
+        delete(module_members)
+    }
     for decl in prog.declarations {
-        check_node(decl)
+        if decl.kind == .Import_Stmt {
+            check_node(decl)
+        }
+    }
+    for decl in prog.declarations {
+        if decl.kind == .Const_Decl {
+            check_node(decl)
+        }
+    }
+    for decl in prog.declarations {
+        if decl.kind != .Import_Stmt && decl.kind != .Const_Decl {
+            check_node(decl)
+        }
     }
     return !has_errors()
 }
@@ -247,6 +324,9 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
 
     case .Ident:
         t := lookup_var(node.name)
+        if t == nil {
+            t = lookup_global(node.name)
+        }
         if t == nil {
             if _, ok := lookup_enum(node.name); ok {
                 t = new(ast.Type_Info)
@@ -406,6 +486,15 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         return t
 
     case .Member_Expr:
+        if node.object.kind == .Ident {
+            module_name := node.object.name
+            if is_module_import(module_name) {
+                if const_info := lookup_global(node.field); const_info != nil {
+                    node.type = const_info
+                    return const_info
+                }
+            }
+        }
         check_node(node.object)
         if node.object.type != nil && node.object.type.kind == .Named {
             fields := lookup_struct(node.object.type.name)
@@ -576,7 +665,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
             ctype = node.value.type
         }
         if ctype != nil {
-            current_scope.vars[node.name] = ctype
+            global_consts[node.name] = ctype
         }
         return nil
 
@@ -587,6 +676,14 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         return nil
 
     case .Import_Stmt:
+        import_path := node.import_path
+        module_name := get_module_name(import_path)
+        if module_name != "" {
+            current_scope.imports_[module_name] = nil
+            if _, exists := module_members[module_name]; !exists {
+                module_members[module_name] = make(map[string]^ast.Type_Info)
+            }
+        }
         return nil
 
     case .Invalid:

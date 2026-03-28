@@ -2,6 +2,8 @@ package codegen
 
 import "../ast"
 import "../common"
+import "../imports"
+import "../lexer"
 import llvm "../bindings/llvm"
 import "../parser"
 import "../typecheck"
@@ -9,8 +11,21 @@ import "core:c"
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import "core:os/old"
 import "core:strings"
+
+foreign import libc "system:c"
+
+foreign libc {
+	@(link_name="system")
+	c_system :: proc(cmd: cstring) -> c.int ---
+}
+
+@(private)
+run_command :: proc(cmd: string) -> int {
+	cmd_cstr, _ := strings.clone_to_cstring(cmd)
+	defer delete(cmd_cstr)
+	return int(c_system(cmd_cstr))
+}
 
 LLVMIntEQ: c.int : 32
 LLVMIntNE: c.int : 33
@@ -23,6 +38,13 @@ struct_types: map[string]llvm.TypeRef
 struct_fields: map[string][]string
 enum_variants: map[string]map[string]int
 global_consts: map[string]llvm.ValueRef
+
+Fn_Info :: struct {
+	ret_type: llvm.TypeRef,
+	param_types: []llvm.TypeRef,
+}
+
+fn_types: map[string]Fn_Info
 
 // Minimal value typing for LLVM generation.
 ValueInfo :: struct {
@@ -46,12 +68,14 @@ Var_Entry :: struct {
 }
 
 CompilerCtx :: struct {
-	module:      llvm.ModuleRef,
-	builder:     llvm.BuilderRef,
-	fn:          llvm.ValueRef,
-	break_bb:    llvm.BasicBlockRef,
-	continue_bb: llvm.BasicBlockRef,
-	allocator:   mem.Allocator,
+	module:       llvm.ModuleRef,
+	builder:      llvm.BuilderRef,
+	fn:           llvm.ValueRef,
+	fn_ret_type:  llvm.TypeRef,
+	fn_ret_name:  string,
+	break_bb:     llvm.BasicBlockRef,
+	continue_bb:  llvm.BasicBlockRef,
+	allocator:    mem.Allocator,
 	vars: #soa [dynamic]Var_Entry,
 }
 
@@ -172,43 +196,50 @@ to_const0 :: proc(ty: llvm.TypeRef) -> llvm.ValueRef {
 }
 
 convert_type :: proc(ctx: ^CompilerCtx, val: llvm.ValueRef, from_ty, to_ty: llvm.TypeRef) -> llvm.ValueRef {
-	// Same type, no conversion needed
 	if from_ty == to_ty {
 		return val
 	}
 	
-	// Integer to float
-	if to_ty == llvm.LLVMDoubleType() && (from_ty == llvm.LLVMInt32Type() || from_ty == llvm.LLVMInt8Type() || from_ty == llvm.LLVMInt16Type() || from_ty == llvm.LLVMInt64Type()) {
+	from_kind := llvm.LLVMGetTypeKind(from_ty)
+	to_kind := llvm.LLVMGetTypeKind(to_ty)
+	
+	is_from_int := from_kind == .IntegerTypeKind
+	is_to_int := to_kind == .IntegerTypeKind
+	is_from_float := from_kind == .FloatTypeKind || from_kind == .DoubleTypeKind
+	is_to_float := to_kind == .FloatTypeKind || to_kind == .DoubleTypeKind
+	
+	if is_from_int && is_to_int {
+		i32 := llvm.LLVMInt32Type()
+		i64 := llvm.LLVMInt64Type()
+		i8 := llvm.LLVMInt8Type()
+		
+		if from_ty == i32 && to_ty == i64 {
+			return llvm.LLVMBuildSExt(ctx.builder, val, to_ty, "sext")
+		}
+		if from_ty == i64 && to_ty == i32 {
+			return llvm.LLVMBuildTrunc(ctx.builder, val, to_ty, "trunc")
+		}
+		if from_ty == i8 && to_ty == i32 {
+			return llvm.LLVMBuildSExt(ctx.builder, val, to_ty, "sext")
+		}
+		if from_ty == i8 && to_ty == i64 {
+			return llvm.LLVMBuildSExt(ctx.builder, val, to_ty, "sext")
+		}
+		if from_ty == i32 && to_ty == i8 {
+			return llvm.LLVMBuildTrunc(ctx.builder, val, to_ty, "trunc")
+		}
+		if from_ty == i64 && to_ty == i8 {
+			return llvm.LLVMBuildTrunc(ctx.builder, val, to_ty, "trunc")
+		}
+		return val
+	}
+	
+	if is_from_int && is_to_float {
 		return llvm.LLVMBuildSIToFP(ctx.builder, val, to_ty, "itof")
 	}
 	
-	// Float to integer
-	if (from_ty == llvm.LLVMDoubleType() || from_ty == llvm.LLVMDoubleType()) && (to_ty == llvm.LLVMInt32Type() || to_ty == llvm.LLVMInt8Type() || to_ty == llvm.LLVMInt16Type() || to_ty == llvm.LLVMInt64Type()) {
+	if is_from_float && is_to_int {
 		return llvm.LLVMBuildFPToSI(ctx.builder, val, to_ty, "ftoi")
-	}
-	
-	// Integer width conversions
-	if from_ty == llvm.LLVMInt32Type() && to_ty == llvm.LLVMInt8Type() {
-		return llvm.LLVMBuildTrunc(ctx.builder, val, to_ty, "trunc")
-	}
-	if from_ty == llvm.LLVMInt32Type() && to_ty == llvm.LLVMInt16Type() {
-		return llvm.LLVMBuildTrunc(ctx.builder, val, to_ty, "trunc")
-	}
-	if from_ty == llvm.LLVMInt32Type() && to_ty == llvm.LLVMInt64Type() {
-		return llvm.LLVMBuildSExt(ctx.builder, val, to_ty, "sext")
-	}
-	if from_ty == llvm.LLVMInt8Type() && to_ty == llvm.LLVMInt32Type() {
-		return llvm.LLVMBuildSExt(ctx.builder, val, to_ty, "sext")
-	}
-	
-	// Bool (i1) conversions
-	if to_ty == llvm.LLVMInt1Type() {
-		if from_ty == llvm.LLVMInt32Type() || from_ty == llvm.LLVMInt64Type() {
-			return llvm.LLVMBuildTrunc(ctx.builder, val, to_ty, "tobool")
-		}
-	}
-	if from_ty == llvm.LLVMInt1Type() && to_ty == llvm.LLVMInt32Type() {
-		return llvm.LLVMBuildZExt(ctx.builder, val, to_ty, "bool_to_int")
 	}
 	
 	return val
@@ -220,6 +251,9 @@ to_bool_i1 :: proc(ctx: ^CompilerCtx, v: ValueInfo) -> llvm.ValueRef {
 
 	LLVMRealONE: c.int = 1
 
+	if v.ty == llvm.LLVMInt1Type() {
+		return v.val
+	}
 	if v.ty == llvm.LLVMInt32Type() {
 		return llvm.LLVMBuildICmp(ctx.builder, LLVMIntNE, v.val, zero, "tobool")
 	}
@@ -238,6 +272,77 @@ to_bool_i1 :: proc(ctx: ^CompilerCtx, v: ValueInfo) -> llvm.ValueRef {
 
 zext_i1_to_i32 :: proc(ctx: ^CompilerCtx, cond_i1: llvm.ValueRef) -> llvm.ValueRef {
 	return llvm.LLVMBuildZExt(ctx.builder, cond_i1, llvm.LLVMInt32Type(), "tobool_i32")
+}
+
+process_imports :: proc(prog: ^ast.Program, current_file: string, alloc: mem.Allocator, verbose: bool) -> bool {
+	import_nodes := [dynamic]^ast.Node{}
+	other_decls := [dynamic]^ast.Node{}
+
+	for decl in prog.declarations {
+		if decl.kind == .Import_Stmt {
+			append(&import_nodes, decl)
+		} else {
+			append(&other_decls, decl)
+		}
+	}
+
+	imported_decls := [dynamic]^ast.Node{}
+
+	for import_node in import_nodes {
+		path := import_node.import_path
+		if imports.is_visited(path) {
+			continue
+		}
+		imports.mark_visited(path)
+
+		module_path, ok := imports.resolve_module(path, current_file)
+		if !ok {
+			for err in imports.get_errors() {
+				common.print_error(err, 0, 0)
+			}
+			return false
+		}
+
+		if verbose {
+			common.colorf(.Yellow, "    Importing: %s\n", path)
+		}
+
+		module_source, read_err := os.read_entire_file_from_path(module_path, alloc)
+		if read_err != nil {
+			common.print_error(fmt.tprintf("Cannot read module: %s", path), 0, 0)
+			return false
+		}
+		defer delete(module_source)
+
+		l := lexer.init(string(module_source))
+		tokens := lexer.scan(&l)
+		module_prog := parser.parse(string(module_source), alloc)
+		lexer.destroy_tokens(&tokens)
+
+		if parser.has_errors() {
+			parser.print_errors()
+			return false
+		}
+
+		if !process_imports(module_prog, module_path, alloc, verbose) {
+			return false
+		}
+
+		for decl in module_prog.declarations {
+			append(&imported_decls, decl)
+		}
+	}
+
+	all_decls := imported_decls
+	for decl in import_nodes {
+		append(&all_decls, decl)
+	}
+	for decl in other_decls {
+		append(&all_decls, decl)
+	}
+
+	prog.declarations = all_decls[:]
+	return true
 }
 
 compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.Allocator = {}, verbose: bool = false, output_type: common.Output_Type = .Executable) -> bool {
@@ -267,6 +372,14 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 	}
 
 	if verbose {
+		common.colorf(.Yellow, "  Processing imports...\n")
+	}
+	imports.init_imports(verbose)
+	if !process_imports(prog, acorn_file, alloc, verbose) {
+		return false
+	}
+
+	if verbose {
 		common.colorf(.Yellow, "  Type checking...\n")
 	}
 	if !typecheck.check_program(prog) {
@@ -286,6 +399,7 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 	struct_fields = make(map[string][]string)
 	enum_variants = make(map[string]map[string]int)
 	global_consts = make(map[string]llvm.ValueRef)
+	fn_types = make(map[string]Fn_Info)
 
 	defer {
 		llvm.LLVMDisposeBuilder(builder)
@@ -300,6 +414,10 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 		}
 		delete(enum_variants)
 		delete(global_consts)
+		for key in fn_types {
+			delete(fn_types[key].param_types)
+		}
+		delete(fn_types)
 	}
 
 	for decl in prog.declarations {
@@ -369,9 +487,8 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 		if verbose {
 			common.colorf(.Yellow, "  Compiling to object file: %s\n", output_file)
 		}
-		llc_args := []string{"--filetype=obj", "-o", output_file, llvm_file}
-		result := old.execvp("llc", llc_args)
-		if result != nil {
+		llc_cmd := fmt.tprintf("llc --filetype=obj -o %s %s", output_file, llvm_file)
+		if run_command(llc_cmd) != 0 {
 			common.print_error("LLVM compilation failed", 0, 0)
 			return false
 		}
@@ -382,12 +499,21 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 	if verbose {
 		common.colorf(.Yellow, "  Linking...\n")
 	}
-	args := []string{llvm_file, obj_file, output_file}
-	result := old.execvp("/tmp/acorn_linker", args)
-	if result != nil {
-		common.print_error("LLVM linking failed", 0, 0)
+
+	llc_cmd := fmt.tprintf("llc --filetype=obj -o %s %s", obj_file, llvm_file)
+	if run_command(llc_cmd) != 0 {
+		common.print_error("LLVM compilation failed", 0, 0)
 		return false
 	}
+
+	link_cmd := fmt.tprintf("clang %s -o %s -no-pie", obj_file, output_file)
+	if run_command(link_cmd) != 0 {
+		common.print_error("Linking failed", 0, 0)
+		return false
+	}
+
+	os.remove(llvm_file)
+	os.remove(obj_file)
 
 	return true
 }
@@ -547,8 +673,25 @@ const_expr_value :: proc(module: llvm.ModuleRef, expected_ty: llvm.TypeRef, node
 generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node: ^ast.Node) {
 	fn_name := node.name
 
-	// For now, the LLVM backend returns i32 for all functions.
-	ret_type := llvm.LLVMInt32Type()
+	ret_type: llvm.TypeRef
+	ret_name := node.return_type.name
+	if ret_name == "" || ret_name == "int" {
+		ret_type = llvm.LLVMInt64Type()
+	} else if ret_name == "f64" || ret_name == "float" {
+		ret_type = llvm.LLVMDoubleType()
+	} else if ret_name == "f32" {
+		ret_type = llvm.LLVMFloatType()
+	} else if ret_name == "string" || ret_name == "str" {
+		ret_type = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+	} else if ret_name == "bool" {
+		ret_type = llvm.LLVMInt1Type()
+	} else if ret_name == "i32" {
+		ret_type = llvm.LLVMInt32Type()
+	} else if ret_name == "i8" || ret_name == "byte" {
+		ret_type = llvm.LLVMInt8Type()
+	} else {
+		ret_type = llvm.LLVMInt64Type()
+	}
 
 	param_count := uint(0)
 	if node.params != nil {
@@ -559,10 +702,20 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	defer delete(param_types)
 	for i in 0 ..< param_count {
 		param_ty_name := node.params[i].type.name
-		if param_ty_name == "float" {
+		if param_ty_name == "f64" || param_ty_name == "float" {
 			param_types[i] = llvm.LLVMDoubleType()
-		} else {
+		} else if param_ty_name == "f32" {
+			param_types[i] = llvm.LLVMFloatType()
+		} else if param_ty_name == "string" || param_ty_name == "str" {
+			param_types[i] = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		} else if param_ty_name == "bool" {
+			param_types[i] = llvm.LLVMInt1Type()
+		} else if param_ty_name == "i32" {
 			param_types[i] = llvm.LLVMInt32Type()
+		} else if param_ty_name == "i8" || param_ty_name == "byte" {
+			param_types[i] = llvm.LLVMInt8Type()
+		} else {
+			param_types[i] = llvm.LLVMInt64Type()
 		}
 	}
 
@@ -571,16 +724,27 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	fn := llvm.LLVMAddFunction(module, fn_name_c, fn_type)
 	delete(fn_name_c)
 
+	param_types_copy := make([]llvm.TypeRef, param_count)
+	for i in 0..<param_count {
+		param_types_copy[i] = param_types[i]
+	}
+	fn_types[fn_name] = Fn_Info{
+		ret_type = ret_type,
+		param_types = param_types_copy,
+	}
+
 	entry_bb := llvm.LLVMAppendBasicBlock(fn, "entry")
 	llvm.LLVMPositionBuilderAtEnd(builder, entry_bb)
 
 	ctx := CompilerCtx {
-		module      = module,
-		builder     = builder,
-		fn          = fn,
-		break_bb    = nil,
-		continue_bb = nil,
-		allocator   = context.allocator,
+		module       = module,
+		builder      = builder,
+		fn           = fn,
+		fn_ret_type  = ret_type,
+		fn_ret_name  = ret_name,
+		break_bb     = nil,
+		continue_bb  = nil,
+		allocator    = context.allocator,
 	}
 	defer {
 		delete(ctx.vars)
@@ -612,7 +776,17 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	}
 
 	if !terminated {
-		llvm.LLVMBuildRet(builder, llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0))
+		if ctx.fn_ret_type == llvm.LLVMDoubleType() {
+			llvm.LLVMBuildRet(builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
+		} else if ctx.fn_ret_type == llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0) {
+			zero := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
+			null_ptr := llvm.LLVMBuildIntToPtr(builder, zero, ctx.fn_ret_type, "null_ptr")
+			llvm.LLVMBuildRet(builder, null_ptr)
+		} else if ctx.fn_ret_type == llvm.LLVMInt1Type() {
+			llvm.LLVMBuildRet(builder, llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0))
+		} else {
+			llvm.LLVMBuildRet(builder, llvm.LLVMConstInt(ctx.fn_ret_type, 0, 0))
+		}
 	}
 }
 
@@ -624,13 +798,20 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 	if node.kind == .Return_Stmt {
 		if node.value != nil {
 			v := generate_llvm_expr(ctx, node.value)
-			// Function return is i32, so convert floats if needed.
-			if v.ty == llvm.LLVMDoubleType() {
-				v.val = llvm.LLVMBuildFPToSI(ctx.builder, v.val, llvm.LLVMInt32Type(), "retcast")
-			}
-			llvm.LLVMBuildRet(ctx.builder, v.val)
+			ret_val := convert_type(ctx, v.val, v.ty, ctx.fn_ret_type)
+			llvm.LLVMBuildRet(ctx.builder, ret_val)
 		} else {
-			llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0))
+			if ctx.fn_ret_type == llvm.LLVMDoubleType() {
+				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
+			} else if ctx.fn_ret_type == llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0) {
+				zero := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
+				null_ptr := llvm.LLVMBuildIntToPtr(ctx.builder, zero, ctx.fn_ret_type, "null_ptr")
+				llvm.LLVMBuildRet(ctx.builder, null_ptr)
+			} else if ctx.fn_ret_type == llvm.LLVMInt1Type() {
+				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0))
+			} else {
+				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstInt(ctx.fn_ret_type, 0, 0))
+			}
 		}
 		return true
 	}
@@ -1277,8 +1458,8 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		b := 0
 		if node.bool_value {b = 1}
 		return ValueInfo {
-			val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(b), 0),
-			ty = llvm.LLVMInt32Type(),
+			val = llvm.LLVMConstInt(llvm.LLVMInt1Type(), u64(b), 0),
+			ty = llvm.LLVMInt1Type(),
 		}
 	case .String_Literal:
 		str_c := strings.clone_to_cstring(node.string_value)
@@ -1362,6 +1543,26 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			if val, found := find_enum_variant_value(node.object.name, node.field); found {
 				int_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), cast(u64)val, 0)
 				return ValueInfo{val = int_val, ty = llvm.LLVMInt32Type(), base_type = "int"}
+			}
+			if _, has_fn := fn_types[node.field]; has_fn {
+				fn_name_c := strings.clone_to_cstring(node.field)
+				fn_val := llvm.LLVMGetNamedFunction(ctx.module, fn_name_c)
+				delete(fn_name_c)
+				if fn_val != nil {
+					fn_ty := llvm.LLVMTypeOf(fn_val)
+					fn_ptr_ty := llvm.LLVMPointerType(fn_ty, 0)
+					fn_ptr := llvm.LLVMBuildBitCast(ctx.builder, fn_val, fn_ptr_ty, "fn_ptr")
+					return ValueInfo{val = fn_ptr, ty = fn_ptr_ty}
+				}
+			}
+			if gv, ok := global_consts[node.field]; ok {
+				init_val := llvm.LLVMGetInitializer(gv)
+				loaded_ptr := llvm.LLVMBuildAlloca(ctx.builder, llvm.LLVMTypeOf(init_val), "const_tmp")
+				llvm.LLVMBuildStore(ctx.builder, init_val, loaded_ptr)
+				name_c := strings.clone_to_cstring(node.field)
+				loaded_val := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMTypeOf(init_val), loaded_ptr, name_c)
+				delete(name_c)
+				return ValueInfo{val = loaded_val, ty = llvm.LLVMTypeOf(init_val)}
 			}
 		}
 
@@ -1696,6 +1897,18 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			defer delete(callee_name_c)
 			fn_val := llvm.LLVMGetNamedFunction(ctx.module, callee_name_c)
 
+			fn_info, has_fn := fn_types[callee_name]
+			ret_type: llvm.TypeRef
+			param_tys: []llvm.TypeRef
+
+			if has_fn {
+				ret_type = fn_info.ret_type
+				param_tys = fn_info.param_types
+			} else {
+				ret_type = llvm.LLVMInt64Type()
+				param_tys = make([]llvm.TypeRef, 0)
+			}
+
 			arg_count: uint = 0
 			if node.arguments != nil {
 				arg_count = uint(len(node.arguments))
@@ -1703,17 +1916,22 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 
 			arg_vals := make([]llvm.ValueRef, int(arg_count))
 			defer delete(arg_vals)
-			param_tys := make([]llvm.TypeRef, int(arg_count))
-			defer delete(param_tys)
 
 			for i in 0 ..< arg_count {
 				av := generate_llvm_expr(ctx, node.arguments[i])
-				arg_vals[i] = av.val
-				param_tys[i] = av.ty
+				if has_fn && i < uint(len(param_tys)) {
+					if av.ty != param_tys[i] {
+						arg_vals[i] = convert_type(ctx, av.val, av.ty, param_tys[i])
+					} else {
+						arg_vals[i] = av.val
+					}
+				} else {
+					arg_vals[i] = av.val
+				}
 			}
 
 			call_ty := llvm.LLVMFunctionType(
-				llvm.LLVMInt32Type(),
+				ret_type,
 				raw_data(param_tys),
 				arg_count,
 				0,
@@ -1731,7 +1949,69 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 				arg_count,
 				"calltmp",
 			)
-			return ValueInfo{val = call, ty = llvm.LLVMInt32Type()}
+			return ValueInfo{val = call, ty = ret_type}
+		}
+
+		// Handle calls on member expressions (e.g., math.sqrt())
+		if node.callee != nil && node.callee.kind == .Member_Expr {
+			fn_name := node.callee.field
+			fn_name_c := strings.clone_to_cstring(fn_name)
+			defer delete(fn_name_c)
+			fn_val := llvm.LLVMGetNamedFunction(ctx.module, fn_name_c)
+
+			fn_info, has_fn := fn_types[fn_name]
+			ret_type: llvm.TypeRef
+			param_tys: []llvm.TypeRef
+
+			if has_fn {
+				ret_type = fn_info.ret_type
+				param_tys = fn_info.param_types
+			} else {
+				ret_type = llvm.LLVMInt64Type()
+				param_tys = make([]llvm.TypeRef, 0)
+			}
+
+			arg_count: uint = 0
+			if node.arguments != nil {
+				arg_count = uint(len(node.arguments))
+			}
+
+			arg_vals := make([]llvm.ValueRef, int(arg_count))
+			defer delete(arg_vals)
+
+			for i in 0 ..< arg_count {
+				av := generate_llvm_expr(ctx, node.arguments[i])
+				if has_fn && i < uint(len(param_tys)) {
+					if av.ty != param_tys[i] {
+						arg_vals[i] = convert_type(ctx, av.val, av.ty, param_tys[i])
+					} else {
+						arg_vals[i] = av.val
+					}
+				} else {
+					arg_vals[i] = av.val
+				}
+			}
+
+			call_ty := llvm.LLVMFunctionType(
+				ret_type,
+				raw_data(param_tys),
+				arg_count,
+				0,
+			)
+
+			if fn_val == nil {
+				fn_val = llvm.LLVMAddFunction(ctx.module, fn_name_c, call_ty)
+			}
+
+			call := llvm.LLVMBuildCall2(
+				ctx.builder,
+				call_ty,
+				fn_val,
+				raw_data(arg_vals),
+				arg_count,
+				"calltmp",
+			)
+			return ValueInfo{val = call, ty = ret_type}
 		}
 
 		return ValueInfo {

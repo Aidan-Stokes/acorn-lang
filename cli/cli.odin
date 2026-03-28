@@ -1,9 +1,17 @@
 package cli
 
+import "core:c"
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import old "core:os/old"
+import "core:strings"
+
+foreign import libc "system:c"
+
+foreign libc {
+	@(link_name="system")
+	c_system :: proc(cmd: cstring) -> c.int ---
+}
 
 import "../codegen"
 import "../common"
@@ -95,13 +103,18 @@ run :: proc(filename: string, user_output_file: string = "") {
 		common.colorf(.Blue, "Running: %s\n", output_file)
 	}
 
-	result := old.execvp(output_file, []string{output_file})
+	exec_path := strings.concatenate({"./", output_file})
+	defer delete(exec_path)
+	cmd := strings.concatenate({"sh -c \"", exec_path, "\""})
+	defer delete(cmd)
+	cmd_cstr, _ := strings.clone_to_cstring(cmd)
+	defer delete(cmd_cstr)
+	exit_code := int(c_system(cmd_cstr))
+	if exit_code != 0 {
+		common.print_error(fmt.tprintf("Program exited with code %d", exit_code), 0, 0)
+	}
 
 	os.remove(output_file)
-
-	if result != nil {
-		os.exit(1)
-	}
 }
 
 	fmt_proc :: proc(filename: string) {
