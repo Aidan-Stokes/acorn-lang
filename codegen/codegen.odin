@@ -176,6 +176,7 @@ get_llvm_type :: proc(type_name: string) -> llvm.TypeRef {
 			return struct_ty
 		}
 	}
+	// Unknown type - use int64 as placeholder (for generic type parameters)
 	return llvm.LLVMInt64Type()
 }
 
@@ -530,8 +531,9 @@ generate_llvm_struct :: proc(module: llvm.ModuleRef, node: ^ast.Node) {
 		elem_types := make([]llvm.TypeRef, len(node.fields))
 		defer delete(elem_types)
 		field_names := make([]string, len(node.fields))
-		for i in 0..<len(node.fields) {
-			elem_types[i] = get_llvm_type(node.fields[i].type.name)
+		for i := 0; i < len(node.fields); i += 1 {
+			field_type_name := node.fields[i].type.name
+			elem_types[i] = get_llvm_type(field_type_name)
 			field_names[i] = strings.clone(node.fields[i].name)
 		}
 		llvm.LLVMStructSetBody(struct_ty, raw_data(elem_types), uint(len(elem_types)), 0)

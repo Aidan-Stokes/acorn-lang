@@ -29,10 +29,13 @@ current_scope: ^Scope
 root_scope: Scope
 @(private)
 global_consts: map[string]^ast.Type_Info
+@(private)
+generic_type_args: map[string]^ast.Type_Info
 
 init :: proc() {
     clear(&errors)
     global_consts = make(map[string]^ast.Type_Info)
+    generic_type_args = make(map[string]^ast.Type_Info)
     root_scope = Scope{
         vars = make(map[string]^ast.Type_Info),
         struct_ = make(map[string]struct_fields),
@@ -45,6 +48,7 @@ init :: proc() {
 
 destroy :: proc() {
     delete(global_consts)
+    delete(generic_type_args)
     free_scope(&root_scope)
 }
 
@@ -452,6 +456,18 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         return operand
 
     case .Call_Expr:
+        if node.callee != nil && node.callee.kind == .Ident && len(node.callee.generic_args) > 0 {
+            func_name := node.callee.name
+            
+            fn_type := lookup_var(func_name)
+            if fn_type != nil && fn_type.kind == .Fn {
+                for i := 0; i < len(node.callee.generic_args); i += 1 {
+                    arg_type := make_type_info(node.callee.generic_args[i])
+                    generic_type_args[func_name] = arg_type
+                }
+            }
+        }
+        
         for arg in node.arguments {
             check_node(arg)
         }
@@ -527,12 +543,16 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
             check_node(f.value)
             if fields != nil {
                 if expected, ok := fields[f.name]; ok {
-                    if !types_equal(expected, f.value.type) {
-                        add_error(
-                            fmt.tprintf("Field '%s' expected type %s, got %s",
-                                f.name, type_name(expected), type_name(f.value.type)),
-                            get_line(node), 0
-                        )
+                    expected_name := type_name(expected)
+                    is_generic := len(expected_name) == 1 && expected_name[0] >= 'A' && expected_name[0] <= 'Z'
+                    if !is_generic {
+                        if !types_equal(expected, f.value.type) {
+                            add_error(
+                                fmt.tprintf("Field '%s' expected type %s, got %s",
+                                    f.name, type_name(expected), type_name(f.value.type)),
+                                get_line(node), 0
+                            )
+                        }
                     }
                 }
             }
@@ -550,6 +570,17 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         return left
 
     case .Fn_Decl:
+        generic_params := node.generic_params
+        
+        if len(generic_params) > 0 {
+            for param in generic_params {
+                t := new(ast.Type_Info)
+                t.kind = .Named
+                t.name = param
+                generic_type_args[param] = t
+            }
+        }
+
         return_type := make_fn_return_type(node.return_type)
         t := new(ast.Type_Info)
         t.kind = .Fn
@@ -563,14 +594,22 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         }
 
         check_node(node.body)
+        
+        if len(generic_params) > 0 {
+            clear(&generic_type_args)
+        }
+        
         return t
 
     case .Struct_Decl:
+        generic_params := node.generic_params
+        
         fields := make(map[string]^ast.Type_Info)
         for f in node.fields {
             fields[f.name] = make_type_info(f.type)
         }
         current_scope.struct_[node.name] = fields
+        
         return nil
 
     case .Enum_Decl:
@@ -695,6 +734,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
 
 make_type_info :: proc(t: ast.Type) -> ^ast.Type_Info {
     info := new(ast.Type_Info)
+    
     if t.is_array {
         info.kind = .Array
         info.element_type = make_type_info(ast.Type{name = t.base_type})
@@ -703,13 +743,51 @@ make_type_info :: proc(t: ast.Type) -> ^ast.Type_Info {
         info.name = strings.concatenate([]string{"^", t.name})
     } else {
         info.kind = .Named
-        info.name = t.name
+        if arg, ok := generic_type_args[t.name]; ok {
+            info.name = arg.name
+        } else {
+            info.name = t.name
+        }
     }
     return info
 }
 
 make_fn_return_type :: proc(t: ast.Type) -> ^ast.Type_Info {
-    return make_type_info(t)
+    return substitute_generic_types(make_type_info(t))
+}
+
+substitute_generic_types :: proc(t: ^ast.Type_Info) -> ^ast.Type_Info {
+    if t == nil do return nil
+    
+    if t.kind == .Named {
+        if arg, ok := generic_type_args[t.name]; ok {
+            return arg
+        }
+    }
+    
+    if t.element_type != nil {
+        t.element_type = substitute_generic_types(t.element_type)
+    }
+    
+    return t
+}
+
+substitute_type :: proc(t: ast.Type) -> ast.Type {
+    result := t
+    if t.is_generic && len(t.generic_args) > 0 && len(t.generic_params) > 0 {
+        for i := 0; i < len(t.generic_params); i += 1 {
+            if i < len(t.generic_args) {
+                arg_type := make_type_info(t.generic_args[i])
+                generic_type_args[t.generic_params[i]] = arg_type
+            }
+        }
+        result.name = t.base_type
+        result.is_generic = false
+        result.generic_args = nil
+    } else if arg, ok := generic_type_args[t.name]; ok {
+        result.name = arg.name
+    }
+    return result
 }
 
 type_name :: proc(t: ^ast.Type_Info) -> string {

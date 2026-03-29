@@ -226,6 +226,28 @@ parse_primary :: proc(p: ^Parser) -> ^ast.Node {
 
     if match(p, .IDENT) {
         ident_name := tok.lexeme
+        
+        if check(p, .LESS) {
+            next_idx := p.current + 1
+            if next_idx < len(p.tokens) && p.tokens[next_idx].kind == .IDENT {
+                expect(p, .LESS)
+                type_args := [dynamic]ast.Type{}
+                if !check(p, .GREATER) {
+                    first_arg := parse_type(p)
+                    append(&type_args, first_arg)
+                    for match(p, .COMMA) {
+                        arg := parse_type(p)
+                        append(&type_args, arg)
+                    }
+                }
+                expect(p, .GREATER)
+                
+                node := ast.new_ident(ident_name)
+                node.generic_args = type_args[:]
+                return node
+            }
+        }
+        
         return ast.new_ident(ident_name)
     }
 

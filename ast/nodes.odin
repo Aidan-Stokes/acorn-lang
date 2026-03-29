@@ -44,14 +44,18 @@ Node_Kind :: enum {
 }
 
 Type :: struct {
-    name:            string,
-    is_array:        bool,
-    array_size:      int,
-    pointer_level:   int,
-    base_type:       string,
-    is_generic:      bool,
-    generic_params:  []string,
-    generic_args:    []Type,
+    name:           string,
+    is_array:       bool,
+    array_size:     int,
+    pointer_level:  int,
+    base_type:      string,
+    is_generic:     bool,
+    generic_params: []string,
+    generic_args:   []Type,
+}
+
+Generic_Arg :: struct {
+    name: string
 }
 
 Type_Kind :: enum {
@@ -108,6 +112,7 @@ Node :: struct {
     fields:         []Field,
     enum_variants:  []Enum_Variant,
     generic_params: []string,
+    generic_args:   []Type,
 
     cases: []^Node,
 
