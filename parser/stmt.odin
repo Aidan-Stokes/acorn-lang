@@ -64,6 +64,35 @@ parse_statement :: proc(p: ^Parser) -> ^ast.Node {
                 }
                 return parse_fn_body(p, name)
             }
+            if next_tok.kind == .LESS {
+                first_token := p.tokens[p.current]
+                name := strings.clone(first_token.lexeme)
+                
+                advance(p)
+                expect(p, .LESS)
+                
+                generic_params: [dynamic]string
+                if !check(p, .GREATER) {
+                    first_param := expect(p, .IDENT)
+                    append(&generic_params, strings.clone(first_param.lexeme))
+                    for match(p, .COMMA) {
+                        param := expect(p, .IDENT)
+                        append(&generic_params, strings.clone(param.lexeme))
+                    }
+                }
+                expect(p, .GREATER)
+                
+                if check(p, .DOUBLE_COLON) {
+                    advance(p)
+                    if match(p, .STRUCT) {
+                        return parse_struct_decl_with_name(p, name)
+                    }
+                    if match(p, .ENUM) {
+                        return parse_enum_decl_with_name(p, name)
+                    }
+                    return parse_fn_body(p, name, generic_params[:])
+                }
+            }
         }
     }
 

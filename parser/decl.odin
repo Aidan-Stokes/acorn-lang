@@ -22,7 +22,7 @@ parse_declaration :: proc(p: ^Parser) -> ^ast.Node {
     return parse_statement(p)
 }
 
-parse_fn_body :: proc(p: ^Parser, name: string) -> ^ast.Node {
+parse_fn_body :: proc(p: ^Parser, name: string, generic_params: []string = nil) -> ^ast.Node {
     expect(p, .FN)
     expect(p, .LPAREN)
 
@@ -56,10 +56,26 @@ parse_fn_body :: proc(p: ^Parser, name: string) -> ^ast.Node {
     delete(params)
 
     fn_node := ast.new_fn_decl(name, params_slice, return_type, body)
+    fn_node.generic_params = generic_params
     return fn_node
 }
 
 parse_struct_decl_with_name :: proc(p: ^Parser, name: string) -> ^ast.Node {
+    generic_params: [dynamic]string
+    
+    if check(p, .LESS) {
+        expect(p, .LESS)
+        if !check(p, .GREATER) {
+            first_param := expect(p, .IDENT)
+            append(&generic_params, strings.clone(first_param.lexeme))
+            for match(p, .COMMA) {
+                param := expect(p, .IDENT)
+                append(&generic_params, strings.clone(param.lexeme))
+            }
+        }
+        expect(p, .GREATER)
+    }
+
     expect(p, .LBRACE)
 
     fields := [dynamic]ast.Field{}
@@ -78,7 +94,7 @@ parse_struct_decl_with_name :: proc(p: ^Parser, name: string) -> ^ast.Node {
     }
     expect(p, .RBRACE)
 
-    node := ast.new_struct_decl(name, fields[:])
+    node := ast.new_struct_decl(name, fields[:], generic_params[:])
     return node
 }
 
@@ -134,6 +150,28 @@ parse_type :: proc(p: ^Parser) -> ast.Type {
     }
     tok := expect(p, .IDENT)
     base := tok.lexeme
+
+    if check(p, .LESS) {
+        expect(p, .LESS)
+        args := [dynamic]ast.Type{}
+        if !check(p, .GREATER) {
+            first_arg := parse_type(p)
+            append(&args, first_arg)
+            for match(p, .COMMA) {
+                arg := parse_type(p)
+                append(&args, arg)
+            }
+        }
+        expect(p, .GREATER)
+        return ast.Type {
+            name = base,
+            pointer_level = pointer_level,
+            base_type = base,
+            is_generic = true,
+            generic_args = args[:],
+        }
+    }
+
     return ast.Type{name = base, pointer_level = pointer_level, base_type = base}
 }
 

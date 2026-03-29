@@ -136,10 +136,11 @@ new_fn_decl :: proc(name: string, params: []Param, return_type: Type, body: ^Nod
     return n
 }
 
-new_struct_decl :: proc(name: string, fields: []Field, allocator: mem.Allocator = {}) -> ^Node {
+new_struct_decl :: proc(name: string, fields: []Field, generic_params: []string = nil, allocator: mem.Allocator = {}) -> ^Node {
     n := new_node(.Struct_Decl, allocator)
     n.name = name
     n.fields = fields
+    n.generic_params = generic_params
     return n
 }
 
