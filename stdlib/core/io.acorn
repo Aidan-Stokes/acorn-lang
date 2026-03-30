@@ -1,9 +1,27 @@
-read_line :: fn() -> string
+read_line :: fn() -> string {
+    return input()
+}
 
-exit :: fn(code: int) -> 
+exit :: fn(code: int) {
+}
 
-read_file :: fn(path: string) -> string
-
-write_file :: fn(path: string, content: string) -> bool
-
-file_exists :: fn(path: string) -> bool
+print_int :: fn(x: int) {
+    if (x < 0) {
+        print("-")
+        x <- -x
+    }
+    if (x >= 10) {
+        print_int(x / 10)
+    }
+    digit <- x % 10
+    if (digit == 0) { print("0") }
+    if (digit == 1) { print("1") }
+    if (digit == 2) { print("2") }
+    if (digit == 3) { print("3") }
+    if (digit == 4) { print("4") }
+    if (digit == 5) { print("5") }
+    if (digit == 6) { print("6") }
+    if (digit == 7) { print("7") }
+    if (digit == 8) { print("8") }
+    if (digit == 9) { print("9") }
+}

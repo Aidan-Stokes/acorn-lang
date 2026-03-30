@@ -230,6 +230,7 @@ parse_primary :: proc(p: ^Parser) -> ^ast.Node {
         if check(p, .LESS) {
             next_idx := p.current + 1
             if next_idx < len(p.tokens) && p.tokens[next_idx].kind == .IDENT {
+                saved_pos := p.current
                 expect(p, .LESS)
                 type_args := [dynamic]ast.Type{}
                 if !check(p, .GREATER) {
@@ -240,11 +241,13 @@ parse_primary :: proc(p: ^Parser) -> ^ast.Node {
                         append(&type_args, arg)
                     }
                 }
-                expect(p, .GREATER)
-                
-                node := ast.new_ident(ident_name)
-                node.generic_args = type_args[:]
-                return node
+                if check(p, .GREATER) {
+                    advance(p)
+                    node := ast.new_ident(ident_name)
+                    node.generic_args = type_args[:]
+                    return node
+                }
+                p.current = saved_pos
             }
         }
         

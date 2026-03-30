@@ -221,6 +221,7 @@ is_numeric :: proc(t: ^ast.Type_Info) -> bool {
 
 is_comparable :: proc(a, b: ^ast.Type_Info) -> bool {
     if a == nil || b == nil do return false
+    if a.kind == b.kind && a.name == b.name do return true
     return a.kind == b.kind || (is_numeric(a) && is_numeric(b))
 }
 
@@ -460,10 +461,11 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
             func_name := node.callee.name
             
             fn_type := lookup_var(func_name)
-            if fn_type != nil && fn_type.kind == .Fn {
-                for i := 0; i < len(node.callee.generic_args); i += 1 {
+            if fn_type != nil && fn_type.kind == .Fn && len(fn_type.generic_params) > 0 {
+                for i := 0; i < len(node.callee.generic_args) && i < len(fn_type.generic_params); i += 1 {
                     arg_type := make_type_info(node.callee.generic_args[i])
-                    generic_type_args[func_name] = arg_type
+                    param_name := fn_type.generic_params[i]
+                    generic_type_args[param_name] = arg_type
                 }
             }
         }
@@ -586,6 +588,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         t.kind = .Fn
         t.name = node.name
         t.return_type = return_type
+        t.generic_params = generic_params
         current_scope.vars[node.name] = t
 
         for p in node.params {
@@ -742,10 +745,11 @@ make_type_info :: proc(t: ast.Type) -> ^ast.Type_Info {
         info.kind = .Named
         info.name = strings.concatenate([]string{"^", t.name})
     } else {
-        info.kind = .Named
         if arg, ok := generic_type_args[t.name]; ok {
+            info.kind = arg.kind
             info.name = arg.name
         } else {
+            info.kind = .Named
             info.name = t.name
         }
     }

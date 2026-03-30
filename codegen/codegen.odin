@@ -677,8 +677,11 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 
 	ret_type: llvm.TypeRef
 	ret_name := node.return_type.name
-	if ret_name == "" || ret_name == "int" {
-		ret_type = llvm.LLVMInt64Type()
+	// Use i32 for int return types to match C convention for main
+	if ret_name == "" {
+		ret_type = llvm.LLVMInt32Type()
+	} else if ret_name == "int" || ret_name == "i32" {
+		ret_type = llvm.LLVMInt32Type()
 	} else if ret_name == "f64" || ret_name == "float" {
 		ret_type = llvm.LLVMDoubleType()
 	} else if ret_name == "f32" {
@@ -692,7 +695,7 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	} else if ret_name == "i8" || ret_name == "byte" {
 		ret_type = llvm.LLVMInt8Type()
 	} else {
-		ret_type = llvm.LLVMInt64Type()
+		ret_type = llvm.LLVMInt32Type()
 	}
 
 	param_count := uint(0)
@@ -712,12 +715,12 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 			param_types[i] = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 		} else if param_ty_name == "bool" {
 			param_types[i] = llvm.LLVMInt1Type()
-		} else if param_ty_name == "i32" {
+		} else if param_ty_name == "int" || param_ty_name == "i32" {
 			param_types[i] = llvm.LLVMInt32Type()
 		} else if param_ty_name == "i8" || param_ty_name == "byte" {
 			param_types[i] = llvm.LLVMInt8Type()
 		} else {
-			param_types[i] = llvm.LLVMInt64Type()
+			param_types[i] = llvm.LLVMInt32Type()
 		}
 	}
 
@@ -800,8 +803,13 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 	if node.kind == .Return_Stmt {
 		if node.value != nil {
 			v := generate_llvm_expr(ctx, node.value)
-			ret_val := convert_type(ctx, v.val, v.ty, ctx.fn_ret_type)
-			llvm.LLVMBuildRet(ctx.builder, ret_val)
+			// If types match, no conversion needed
+			if v.ty == ctx.fn_ret_type {
+				llvm.LLVMBuildRet(ctx.builder, v.val)
+			} else {
+				ret_val := convert_type(ctx, v.val, v.ty, ctx.fn_ret_type)
+				llvm.LLVMBuildRet(ctx.builder, ret_val)
+			}
 		} else {
 			if ctx.fn_ret_type == llvm.LLVMDoubleType() {
 				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
@@ -891,7 +899,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 		return false
 	}
 
-	if node.kind == .Assign_Stmt {
+		if node.kind == .Assign_Stmt {
 		vi_ptr, vi_ty, _, _, found := find_var(ctx, node.target)
 
 		if !found {
@@ -908,15 +916,15 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				delete(target_c)
 				vi_ty = ptr_ty
 			} else {
-				target_c := strings.clone_to_cstring(node.target)
-				vi_ptr = llvm.LLVMBuildAlloca(
-					ctx.builder,
-					llvm.LLVMInt32Type(),
-					target_c,
-				)
-				delete(target_c)
-				vi_ty = llvm.LLVMInt32Type()
-			}
+			target_c := strings.clone_to_cstring(node.target)
+			vi_ptr = llvm.LLVMBuildAlloca(
+				ctx.builder,
+				llvm.LLVMInt32Type(),
+				target_c,
+			)
+			delete(target_c)
+			vi_ty = llvm.LLVMInt32Type()
+		}
 			add_var(ctx, node.target, vi_ptr, vi_ty, "", "")
 
 			if v.ty != vi_ty {

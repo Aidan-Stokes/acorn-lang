@@ -60,8 +60,9 @@ main :: proc() {
         } else if arg == "-c" {
             output_type = common.Output_Type.Object
             i += 1
-        } else if arg == "--verbose" || arg == "-vv" {
+        } else if arg == "--verbose" || arg == "-vv" || arg == "-v" {
             verbose = true
+            cli.set_verbose(verbose)
             i += 1
         } else if arg == "-h" || arg == "--help" {
             print_help()
