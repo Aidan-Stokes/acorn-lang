@@ -591,6 +591,9 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         t.generic_params = generic_params
         current_scope.vars[node.name] = t
 
+        push_scope()
+        defer pop_scope()
+
         for p in node.params {
             ptype := make_type_info(p.type)
             current_scope.vars[p.name] = ptype

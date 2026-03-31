@@ -79,7 +79,16 @@ CompilerCtx :: struct {
 	vars: #soa [dynamic]Var_Entry,
 }
 
-add_var :: proc(ctx: ^CompilerCtx, name: string, ptr: llvm.ValueRef, ty: llvm.TypeRef, base_type := "", struct_type := "") {
+		add_var :: proc(ctx: ^CompilerCtx, name: string, ptr: llvm.ValueRef, ty: llvm.TypeRef, base_type := "", struct_type := "") {
+	for i in 0..<len(ctx.vars) {
+		if ctx.vars[i].name == name {
+			ctx.vars[i].ptr = ptr
+			ctx.vars[i].ty = ty
+			ctx.vars[i].base_type = base_type
+			ctx.vars[i].struct_type = struct_type
+			return
+		}
+	}
 	append(&ctx.vars, Var_Entry{
 		name = name,
 		ptr = ptr,
@@ -89,7 +98,7 @@ add_var :: proc(ctx: ^CompilerCtx, name: string, ptr: llvm.ValueRef, ty: llvm.Ty
 	})
 }
 
-find_var :: proc(ctx: ^CompilerCtx, name: string) -> (ptr: llvm.ValueRef, ty: llvm.TypeRef, base_type: string, struct_type: string, found: bool) {
+	find_var :: proc(ctx: ^CompilerCtx, name: string) -> (ptr: llvm.ValueRef, ty: llvm.TypeRef, base_type: string, struct_type: string, found: bool) {
 	for i := len(ctx.vars) - 1; i >= 0; i -= 1 {
 		entry := ctx.vars[i]
 		if entry.name == name {
@@ -99,7 +108,10 @@ find_var :: proc(ctx: ^CompilerCtx, name: string) -> (ptr: llvm.ValueRef, ty: ll
 	return nil, nil, "", "", false
 }
 
-find_struct_field_index :: proc(struct_name: string, field_name: string) -> int {
+	find_struct_field_index :: proc(struct_name: string, field_name: string) -> int {
+	if struct_name == "" {
+		return -1
+	}
 	if fields, ok := struct_fields[struct_name]; ok {
 		for i in 0..<len(fields) {
 			if fields[i] == field_name {
@@ -425,6 +437,9 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 		if decl.kind == .Struct_Decl {
 			generate_llvm_struct(module, decl)
 		}
+		if decl.kind == .Import_Stmt {
+			continue
+		}
 		if decl.kind == .Enum_Decl {
 			generate_llvm_enum(module, decl)
 		}
@@ -685,7 +700,7 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	} else if ret_name == "f64" || ret_name == "float" {
 		ret_type = llvm.LLVMDoubleType()
 	} else if ret_name == "f32" {
-		ret_type = llvm.LLVMFloatType()
+		ret_type = llvm.LLVMDoubleType()
 	} else if ret_name == "string" || ret_name == "str" {
 		ret_type = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 	} else if ret_name == "bool" {
@@ -694,6 +709,8 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 		ret_type = llvm.LLVMInt32Type()
 	} else if ret_name == "i8" || ret_name == "byte" {
 		ret_type = llvm.LLVMInt8Type()
+	} else if st, ok := struct_types[ret_name]; ok {
+		ret_type = st
 	} else {
 		ret_type = llvm.LLVMInt32Type()
 	}
@@ -710,17 +727,19 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 		if param_ty_name == "f64" || param_ty_name == "float" {
 			param_types[i] = llvm.LLVMDoubleType()
 		} else if param_ty_name == "f32" {
-			param_types[i] = llvm.LLVMFloatType()
+			param_types[i] = llvm.LLVMDoubleType()
 		} else if param_ty_name == "string" || param_ty_name == "str" {
 			param_types[i] = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 		} else if param_ty_name == "bool" {
 			param_types[i] = llvm.LLVMInt1Type()
 		} else if param_ty_name == "int" || param_ty_name == "i32" {
-			param_types[i] = llvm.LLVMInt32Type()
+			param_types[i] = llvm.LLVMInt64Type()
 		} else if param_ty_name == "i8" || param_ty_name == "byte" {
 			param_types[i] = llvm.LLVMInt8Type()
+		} else if st, ok := struct_types[param_ty_name]; ok {
+			param_types[i] = st
 		} else {
-			param_types[i] = llvm.LLVMInt32Type()
+			param_types[i] = llvm.LLVMInt64Type()
 		}
 	}
 
@@ -767,7 +786,7 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 		param_val := llvm.LLVMGetParam(fn, uint(i))
 		llvm.LLVMBuildStore(builder, param_val, alloca)
 
-		add_var(&ctx, param_name, alloca, param_ty)
+		add_var(&ctx, param_name, alloca, param_ty, "", node.params[i].type.name)
 	}
 
 	terminated := false
@@ -781,16 +800,28 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	}
 
 	if !terminated {
-		if ctx.fn_ret_type == llvm.LLVMDoubleType() {
-			llvm.LLVMBuildRet(builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
-		} else if ctx.fn_ret_type == llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0) {
-			zero := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
-			null_ptr := llvm.LLVMBuildIntToPtr(builder, zero, ctx.fn_ret_type, "null_ptr")
-			llvm.LLVMBuildRet(builder, null_ptr)
-		} else if ctx.fn_ret_type == llvm.LLVMInt1Type() {
-			llvm.LLVMBuildRet(builder, llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0))
+		// For void functions (no return type), use ret void
+		if node.return_type.name == "" {
+			// Void function - use ret void
+			llvm.LLVMBuildRetVoid(ctx.builder)
 		} else {
-			llvm.LLVMBuildRet(builder, llvm.LLVMConstInt(ctx.fn_ret_type, 0, 0))
+			ret_kind := llvm.LLVMGetTypeKind(ctx.fn_ret_type)
+			if ret_kind == .StructTypeKind {
+				// For struct returns, return a zero pointer (caller will handle properly)
+				zero := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
+				zero_ptr := llvm.LLVMBuildIntToPtr(ctx.builder, zero, ctx.fn_ret_type, "zero_struct")
+				llvm.LLVMBuildRet(ctx.builder, zero_ptr)
+			} else if ctx.fn_ret_type == llvm.LLVMDoubleType() {
+				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
+			} else if ctx.fn_ret_type == llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0) {
+				zero := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
+				null_ptr := llvm.LLVMBuildIntToPtr(ctx.builder, zero, ctx.fn_ret_type, "null_ptr")
+				llvm.LLVMBuildRet(ctx.builder, null_ptr)
+			} else if ctx.fn_ret_type == llvm.LLVMInt1Type() {
+				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0))
+			} else {
+				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstInt(ctx.fn_ret_type, 0, 0))
+			}
 		}
 	}
 }
@@ -803,15 +834,29 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 	if node.kind == .Return_Stmt {
 		if node.value != nil {
 			v := generate_llvm_expr(ctx, node.value)
-			// If types match, no conversion needed
+			
+			// For struct returns, we need to load the value if it's still a pointer
+			ret_kind := llvm.LLVMGetTypeKind(ctx.fn_ret_type)
+			return_val := v.val
+			if ret_kind == .StructTypeKind && v.struct_type != "" {
+				// v.val is an alloca, we need to load the actual struct value
+				loaded := llvm.LLVMBuildLoad2(ctx.builder, ctx.fn_ret_type, v.val, "ret_val")
+				return_val = loaded
+			}
+			
 			if v.ty == ctx.fn_ret_type {
-				llvm.LLVMBuildRet(ctx.builder, v.val)
+				llvm.LLVMBuildRet(ctx.builder, return_val)
 			} else {
-				ret_val := convert_type(ctx, v.val, v.ty, ctx.fn_ret_type)
+				ret_val := convert_type(ctx, return_val, v.ty, ctx.fn_ret_type)
 				llvm.LLVMBuildRet(ctx.builder, ret_val)
 			}
 		} else {
-			if ctx.fn_ret_type == llvm.LLVMDoubleType() {
+			ret_kind := llvm.LLVMGetTypeKind(ctx.fn_ret_type)
+			if ret_kind == .StructTypeKind {
+				zero_ptr := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
+				zero := llvm.LLVMBuildIntToPtr(ctx.builder, zero_ptr, ctx.fn_ret_type, "zero_struct")
+				llvm.LLVMBuildRet(ctx.builder, zero)
+			} else if ctx.fn_ret_type == llvm.LLVMDoubleType() {
 				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
 			} else if ctx.fn_ret_type == llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0) {
 				zero := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
@@ -838,8 +883,12 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 		
 		elem_ty := get_llvm_type(base_type)
 		is_struct := false
+		is_array := false
 		if _, ok := struct_types[base_type]; ok {
 			is_struct = true
+		}
+		if node.return_type.is_array {
+			is_array = true
 		}
 
 		if node.value != nil {
@@ -860,7 +909,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				delete(var_name_c)
 				llvm.LLVMBuildStore(ctx.builder, v.val, alloca)
 				add_var(ctx, node.name, alloca, ptr_storage_ty, base_type, "")
-			} else if is_struct {
+			} else if is_struct || base_type != "" {
 				var_name_c := strings.clone_to_cstring(node.name)
 				alloca := llvm.LLVMBuildAlloca(
 					ctx.builder,
@@ -869,6 +918,17 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				)
 				delete(var_name_c)
 				loaded := llvm.LLVMBuildLoad2(ctx.builder, elem_ty, v.val, "struct_copy")
+				llvm.LLVMBuildStore(ctx.builder, loaded, alloca)
+				add_var(ctx, node.name, alloca, elem_ty, base_type, "")
+			} else if is_array {
+				var_name_c := strings.clone_to_cstring(node.name)
+				alloca := llvm.LLVMBuildAlloca(
+					ctx.builder,
+					elem_ty,
+					var_name_c,
+				)
+				delete(var_name_c)
+				loaded := llvm.LLVMBuildLoad2(ctx.builder, elem_ty, v.val, "array_copy")
 				llvm.LLVMBuildStore(ctx.builder, loaded, alloca)
 				add_var(ctx, node.name, alloca, elem_ty, "", base_type)
 			} else {
@@ -890,7 +950,9 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 			alloca := llvm.LLVMBuildAlloca(ctx.builder, elem_ty, var_name_c)
 			delete(var_name_c)
 			llvm.LLVMBuildStore(ctx.builder, to_const0(elem_ty), alloca)
-			if is_struct {
+			if is_struct || base_type != "" {
+				add_var(ctx, node.name, alloca, elem_ty, "", base_type)
+			} else if is_array {
 				add_var(ctx, node.name, alloca, elem_ty, "", base_type)
 			} else {
 				add_var(ctx, node.name, alloca, elem_ty, "", "")
@@ -899,7 +961,33 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 		return false
 	}
 
-		if node.kind == .Assign_Stmt {
+	if node.kind == .Const_Decl {
+		name := node.name
+		name_c := strings.clone_to_cstring(name)
+		defer delete(name_c)
+
+		llvm_ty: llvm.TypeRef
+		if node.return_type.name != "" {
+			llvm_ty = get_llvm_type(node.return_type.name)
+		} else if node.value != nil {
+			llvm_ty = get_llvm_type_for_value(node.value)
+		} else {
+			llvm_ty = llvm.LLVMInt32Type()
+		}
+
+		alloca := llvm.LLVMBuildAlloca(ctx.builder, llvm_ty, name_c)
+		if node.value != nil {
+			v := generate_llvm_expr(ctx, node.value)
+			if v.ty != llvm_ty {
+				v.val = convert_type(ctx, v.val, v.ty, llvm_ty)
+			}
+			llvm.LLVMBuildStore(ctx.builder, v.val, alloca)
+		}
+		add_var(ctx, name, alloca, llvm_ty, "", "")
+		return false
+	}
+
+	if node.kind == .Assign_Stmt {
 		vi_ptr, vi_ty, _, _, found := find_var(ctx, node.target)
 
 		if !found {
@@ -1603,9 +1691,23 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		} else if obj_val.struct_type != "" {
 			struct_name = obj_val.struct_type
 		}
+		if struct_name == "" && obj_val.ty != nil {
+			kind := llvm.LLVMGetTypeKind(obj_val.ty)
+			if kind == .StructTypeKind {
+				for sn, st in struct_types {
+					if st == obj_val.ty {
+						struct_name = sn
+						break
+					}
+				}
+			}
+		}
+		if struct_name == "" {
+			struct_name = obj_val.struct_type
+		}
 		field_idx := find_struct_field_index(struct_name, node.field)
-		if field_idx < 0 {
-			fmt.printf("ERROR: field '%s' not found in struct '%s'\n", node.field, struct_name)
+		if field_idx < 0 || obj_ty == nil {
+			fmt.printf("ERROR: field '%s' not found in struct '%s' (obj_ty=%p)\n", node.field, struct_name, obj_ty)
 			return ValueInfo{val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0), ty = llvm.LLVMInt32Type()}
 		}
 		field_name_c := strings.clone_to_cstring(node.field)
@@ -1613,7 +1715,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		delete(field_name_c)
 		field_elem_ty := llvm.LLVMStructGetTypeAtIndex(obj_ty, uint(field_idx))
 		loaded_val := llvm.LLVMBuildLoad2(ctx.builder, field_elem_ty, field_ptr, "field_val")
-		return ValueInfo{val = loaded_val, ty = field_elem_ty}
+		return ValueInfo{val = loaded_val, ty = field_elem_ty, base_type = "int"}
 
 	case .Index_Expr:
 		arr_val := generate_llvm_expr(ctx, node.object)
@@ -1654,26 +1756,17 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			}
 		}
 		if found {
-			if vi_struct_type != "" {
-				return ValueInfo {
-					val = vi_ptr,
-					ty = vi_ty,
-					struct_type = vi_struct_type,
+			if vi_struct_type != "" || vi_base_type != "" {
+				check_struct_type := vi_struct_type
+				if check_struct_type == "" {
+					check_struct_type = vi_base_type
 				}
-			}
-			if vi_base_type != "" {
-				name_c := strings.clone_to_cstring(node.name)
-				val := llvm.LLVMBuildLoad2(
-					ctx.builder,
-					vi_ty,
-					vi_ptr,
-					name_c,
-				)
-				delete(name_c)
-				return ValueInfo {
-					val = val,
-					ty = vi_ty,
-					base_type = vi_base_type,
+				if _, ok := struct_types[check_struct_type]; ok {
+					return ValueInfo {
+						val = vi_ptr,
+						ty = vi_ty,
+						struct_type = check_struct_type,
+					}
 				}
 			}
 			name_c := strings.clone_to_cstring(node.name)
@@ -1864,6 +1957,17 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		op: c.int = LLVMIntEQ
 		if node.operator ==
 		   "==" {op = LLVMIntEQ} else if node.operator == "!=" {op = LLVMIntNE} else if node.operator == ">" {op = LLVMIntSGT} else if node.operator == ">=" {op = LLVMIntSGE} else if node.operator == "<" {op = LLVMIntSLT} else if node.operator == "<=" {op = LLVMIntSLE}
+
+		if left.ty != right.ty {
+			target_ty := llvm.LLVMInt64Type()
+			if left.ty == target_ty {
+				right.val = convert_type(ctx, right.val, right.ty, target_ty)
+				right.ty = target_ty
+			} else if right.ty == target_ty {
+				left.val = convert_type(ctx, left.val, left.ty, target_ty)
+				left.ty = target_ty
+			}
+		}
 
 		cond_i1 := llvm.LLVMBuildICmp(ctx.builder, op, left.val, right.val, "icmp")
 		return ValueInfo{val = zext_i1_to_i32(ctx, cond_i1), ty = llvm.LLVMInt32Type()}
