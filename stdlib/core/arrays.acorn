@@ -1,27 +1,4 @@
-Array :: struct {
-    data: []int,
-    length: int
-}
-
-len :: fn(arr: Array) -> int {
-    return arr.length
-}
-
-push :: fn(arr: Array, value: int) {
-}
-
-pop :: fn(arr: Array) -> int {
-    return 0
-}
-
-get :: fn(arr: Array, index: int) -> int {
-    return 0
-}
-
-set :: fn(arr: Array, index: int, value: int) {
-}
-
-make :: fn(size: int) -> Array {
-    arr: Array;
-    return arr;
-}
+len<T> :: fn(arr: []T) -> int { return 0 }
+get<T> :: fn(arr: []T, index: int) -> T { x: T; return x }
+set<T> :: fn(arr: []T, index: int, value: T) { }
+make<T> :: fn(size: int) -> []T { arr: []T; return arr }

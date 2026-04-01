@@ -1,23 +1,5 @@
-len :: fn(s: string) -> int {
-    return 0
-}
-
-concat :: fn(a: string, b: string) -> string {
-    return ""
-}
-
-slice :: fn(s: string, start: int, end: int) -> string {
-    return ""
-}
-
-contains :: fn(s: string, substr: string) -> bool {
-    return false
-}
-
-starts_with :: fn(s: string, prefix: string) -> bool {
-    return false
-}
-
-ends_with :: fn(s: string, suffix: string) -> bool {
-    return false
-}
+_ :: fn(s: string) -> int { return 0 }
+contains :: fn(s: string, substr: string) -> bool { return false }
+starts_with :: fn(s: string, prefix: string) -> bool { return false }
+ends_with :: fn(s: string, suffix: string) -> bool { return false }
+index_of :: fn(s: string, substr: string) -> int { return -1 }

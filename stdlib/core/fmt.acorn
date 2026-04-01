@@ -1,19 +1,25 @@
-print_int :: fn(x: int) -> int {
+print<T> :: fn(x: T) -> int {
     return 0
 }
 
-print_float :: fn(x: f64) -> int {
+println<T> :: fn(x: T) -> int {
     return 0
 }
 
-print_string :: fn(s: string) -> int {
+print_str :: fn(s: string) -> int {
+    print(s)
     return 0
 }
 
-println :: fn(x: int) -> int {
+println_str :: fn(s: string) -> int {
+    println(s)
     return 0
 }
 
-println_string :: fn(s: string) -> int {
+printf :: fn(fmt: string, args: any) -> int {
     return 0
+}
+
+to_string<T> :: fn(x: T) -> string {
+    return ""
 }

@@ -1,3 +1,18 @@
-PI = 3.14159
-E =  2.71828
-TAU = 6.28318
+PI = 3.141592653589793
+E = 2.718281828459045
+
+absInt :: fn(x: int) -> int { return 0 }
+absF64 :: fn(x: f64) -> f64 { return 0.0 }
+floor :: fn(x: f64) -> f64 { return 0.0 }
+ceil :: fn(x: f64) -> f64 { return 0.0 }
+round :: fn(x: f64) -> f64 { return 0.0 }
+trunc :: fn(x: f64) -> f64 { return 0.0 }
+sqrt :: fn(x: f64) -> f64 { return 0.0 }
+pow :: fn(x: f64, y: f64) -> f64 { return 0.0 }
+sin :: fn(x: f64) -> f64 { return 0.0 }
+cos :: fn(x: f64) -> f64 { return 0.0 }
+tan :: fn(x: f64) -> f64 { return 0.0 }
+log :: fn(x: f64) -> f64 { return 0.0 }
+log2 :: fn(x: f64) -> f64 { return 0.0 }
+log10 :: fn(x: f64) -> f64 { return 0.0 }
+exp :: fn(x: f64) -> f64 { return 0.0 }
