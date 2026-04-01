@@ -690,6 +690,64 @@ const_expr_value :: proc(module: llvm.ModuleRef, expected_ty: llvm.TypeRef, node
 generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node: ^ast.Node) {
 	fn_name := node.name
 
+	// Handle forward declarations (generic functions without body)
+	if node.body == nil {
+		ret_type: llvm.TypeRef
+		ret_name := node.return_type.name
+		if ret_name == "" || ret_name == "int" || ret_name == "i32" {
+			ret_type = llvm.LLVMInt32Type()
+		} else if ret_name == "f64" || ret_name == "float" {
+			ret_type = llvm.LLVMDoubleType()
+		} else if ret_name == "string" || ret_name == "str" {
+			ret_type = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		} else if ret_name == "bool" {
+			ret_type = llvm.LLVMInt1Type()
+		} else if st, ok := struct_types[ret_name]; ok {
+			ret_type = st
+		} else {
+			ret_type = llvm.LLVMInt32Type()
+		}
+
+		param_count := uint(0)
+		if node.params != nil {
+			param_count = uint(len(node.params))
+		}
+
+		param_types := make([]llvm.TypeRef, param_count)
+		defer delete(param_types)
+		for i := 0; i < int(param_count); i += 1 {
+			param_ty_name := node.params[i].type.name
+			if param_ty_name == "f64" || param_ty_name == "float" {
+				param_types[i] = llvm.LLVMDoubleType()
+			} else if param_ty_name == "string" || param_ty_name == "str" {
+				param_types[i] = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+			} else if param_ty_name == "bool" {
+				param_types[i] = llvm.LLVMInt1Type()
+			} else if param_ty_name == "int" || param_ty_name == "i32" {
+				param_types[i] = llvm.LLVMInt64Type()
+			} else if param_ty_name == "f32" {
+				param_types[i] = llvm.LLVMDoubleType()
+			} else if st, ok := struct_types[param_ty_name]; ok {
+				param_types[i] = st
+			} else {
+				param_types[i] = llvm.LLVMInt64Type()
+			}
+		}
+
+		fn_ty := llvm.LLVMFunctionType(ret_type, raw_data(param_types), param_count, 0)
+		fn_name_c := strings.clone_to_cstring(fn_name)
+		defer delete(fn_name_c)
+		llvm.LLVMAddFunction(module, fn_name_c, fn_ty)
+
+		param_types_copy := make([]llvm.TypeRef, int(param_count))
+		copy(param_types_copy, param_types)
+		fn_types[fn_name] = Fn_Info{
+			ret_type = ret_type,
+			param_types = param_types_copy,
+		}
+		return
+	}
+
 	ret_type: llvm.TypeRef
 	ret_name := node.return_type.name
 	// Use i32 for int return types to match C convention for main

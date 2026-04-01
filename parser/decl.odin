@@ -23,41 +23,45 @@ parse_declaration :: proc(p: ^Parser) -> ^ast.Node {
 }
 
 parse_fn_body :: proc(p: ^Parser, name: string, generic_params: []string = nil) -> ^ast.Node {
-    expect(p, .FN)
-    expect(p, .LPAREN)
+	expect(p, .FN)
+	expect(p, .LPAREN)
 
-    params := [dynamic]ast.Param{}
-    for !check(p, .RPAREN) {
-        if len(params) > 0 {
-            expect(p, .COMMA)
-        }
+	params := [dynamic]ast.Param{}
+	for !check(p, .RPAREN) {
+		if len(params) > 0 {
+			expect(p, .COMMA)
+		}
 
-        param_name_tok := expect(p, .IDENT)
-        expect(p, .COLON)
-        param_type := parse_type(p)
-        param_name := strings.clone(param_name_tok.lexeme)
-        append(&params, ast.Param{name = param_name, type = param_type})
-    }
-    expect(p, .RPAREN)
+		param_name_tok := expect(p, .IDENT)
+		expect(p, .COLON)
+		param_type := parse_type(p)
+		param_name := strings.clone(param_name_tok.lexeme)
+		append(&params, ast.Param{name = param_name, type = param_type})
+	}
+	expect(p, .RPAREN)
 
-    return_type := ast.Type {
-        name = "int",
-    }
-    if match(p, .ARROW) {
-        return_type = parse_type(p)
-    }
+	return_type := ast.Type {
+		name = "int",
+	}
+	if match(p, .ARROW) {
+		return_type = parse_type(p)
+	}
 
-    body := parse_block(p)
+	// Handle forward declarations (no body)
+	body: ^ast.Node
+	if check(p, .LBRACE) {
+		body = parse_block(p)
+	}
 
-    params_slice := make([]ast.Param, len(params))
-    for i := 0; i < len(params); i += 1 {
-        params_slice[i] = params[i]
-    }
-    delete(params)
+	params_slice := make([]ast.Param, len(params))
+	for i := 0; i < len(params); i += 1 {
+		params_slice[i] = params[i]
+	}
+	delete(params)
 
-    fn_node := ast.new_fn_decl(name, params_slice, return_type, body)
-    fn_node.generic_params = generic_params
-    return fn_node
+	fn_node := ast.new_fn_decl(name, params_slice, return_type, body)
+	fn_node.generic_params = generic_params
+	return fn_node
 }
 
 parse_struct_decl_with_name :: proc(p: ^Parser, name: string) -> ^ast.Node {

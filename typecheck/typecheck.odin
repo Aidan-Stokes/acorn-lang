@@ -457,15 +457,28 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         return operand
 
     case .Call_Expr:
-        if node.callee != nil && node.callee.kind == .Ident && len(node.callee.generic_args) > 0 {
+        // Handle generic function calls - check if callee is a generic function
+        if node.callee != nil && node.callee.kind == .Ident {
             func_name := node.callee.name
             
             fn_type := lookup_var(func_name)
-            if fn_type != nil && fn_type.kind == .Fn && len(fn_type.generic_params) > 0 {
+            
+            // Handle explicit generic args: abs<int>(5)
+            if fn_type != nil && fn_type.kind == .Fn && len(node.callee.generic_args) > 0 {
                 for i := 0; i < len(node.callee.generic_args) && i < len(fn_type.generic_params); i += 1 {
                     arg_type := make_type_info(node.callee.generic_args[i])
                     param_name := fn_type.generic_params[i]
                     generic_type_args[param_name] = arg_type
+                }
+            }
+            
+            // Handle implicit generic type inference from arguments
+            if fn_type != nil && fn_type.kind == .Fn && len(fn_type.generic_params) > 0 && len(node.arguments) > 0 {
+                first_arg := node.arguments[0]
+                if first_arg.type != nil {
+                    inferred_type := new(ast.Type_Info)
+                    inferred_type^ = first_arg.type^
+                    generic_type_args[fn_type.generic_params[0]] = inferred_type
                 }
             }
         }
