@@ -1,13 +1,14 @@
 // Array utilities
-// Note: Generic function syntax is supported but requires codegen fixes
-len :: fn(arr: []int) -> int { return 0 }
-get :: fn(arr: []int, index: int) -> int { return 0 }
-set :: fn(arr: []int, index: int, value: int) { }
-
-len_str :: fn(arr: []string) -> int { return 0 }
-get_str :: fn(arr: []string, index: int) -> string { return "" }
-
-first :: fn(arr: []int) -> int { return 0 }
-last :: fn(arr: []int) -> int { return 0 }
-contains_int :: fn(arr: []int, value: int) -> bool { return false }
-find_int :: fn(arr: []int, value: int) -> int { return -1 }
+len<T> :: fn(arr: []T) -> int { return 0 }
+get<T> :: fn(arr: []T, index: int) -> T { x: T; return x }
+set<T> :: fn(arr: []T, index: int, value: T) { }
+first<T> :: fn(arr: []T) -> T { x: T; return x }
+last<T> :: fn(arr: []T) -> T { x: T; return x }
+contains<T> :: fn(arr: []T, value: T) -> bool { return false }
+find<T> :: fn(arr: []T, value: T) -> int { return -1 }
+push<T> :: fn(arr: []T, value: T) { }
+pop<T> :: fn(arr: []T) -> T { x: T; return x }
+slice<T> :: fn(arr: []T, start: int, end: int) -> []T { return arr }
+clone<T> :: fn(arr: []T) -> []T { return arr }
+reverse<T> :: fn(arr: []T) { }
+sort<T> :: fn(arr: []T) { }

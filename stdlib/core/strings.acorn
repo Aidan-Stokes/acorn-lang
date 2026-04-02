@@ -10,12 +10,13 @@ to_upper :: fn(s: string) -> string { return s }
 to_lower :: fn(s: string) -> string { return s }
 trim :: fn(s: string) -> string { return s }
 
-split :: fn(s: string, delimiter: string) -> []string { return []string{} }
+split :: fn(s: string, delimiter: string) -> []string { return []string }
 join :: fn(arr: []string, separator: string) -> string { return "" }
 replace :: fn(s: string, old: string, new: string) -> string { return s }
 
 compare :: fn(a: string, b: string) -> int { return 0 }
 equals :: fn(a: string, b: string) -> bool { return false }
 
-from_int :: fn(x: int) -> string { return "" }
-from_f64 :: fn(x: f64) -> string { return "" }
+from<T> :: fn(x: T) -> string { return "" }
+to_int :: fn(s: string) -> int { return 0 }
+to_f64 :: fn(s: string) -> f64 { return 0.0 }

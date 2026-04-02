@@ -2,31 +2,19 @@
 PI = 3.141592653589793
 E = 2.718281828459045
 
-abs_int :: fn(x: int) -> int { return x }
-abs_f64 :: fn(x: f64) -> f64 { return x }
-
-min_int :: fn(a: int, b: int) -> int { return a }
-max_int :: fn(a: int, b: int) -> int { return a }
-
 sqrt :: fn(x: f64) -> f64 { return x }
 sin :: fn(x: f64) -> f64 { return x }
 cos :: fn(x: f64) -> f64 { return x }
 tan :: fn(x: f64) -> f64 { return x }
-
 log :: fn(x: f64) -> f64 { return x }
 exp :: fn(x: f64) -> f64 { return x }
 pow :: fn(base: f64, exp: f64) -> f64 { return base }
-
 floor :: fn(x: f64) -> f64 { return x }
 ceil :: fn(x: f64) -> f64 { return x }
-round :: fn(x: f64) -> f64 { return x }
 
-is_nan :: fn(x: f64) -> bool { return false }
-is_inf :: fn(x: f64) -> bool { return false }
-
-to_radians :: fn(degrees: f64) -> f64 { return degrees * PI / 180.0 }
-to_degrees :: fn(radians: f64) -> f64 { return radians * 180.0 / PI }
+abs<T> :: fn(x: T) -> T { return x }
+min<T> :: fn(a: T, b: T) -> T { return a }
+max<T> :: fn(a: T, b: T) -> T { return a }
+clamp<T> :: fn(value: T, min_val: T, max_val: T) -> T { return value }
 
 gcd :: fn(a: int, b: int) -> int { return a }
-lcm :: fn(a: int, b: int) -> int { return a }
-fibonacci :: fn(n: int) -> int { return n }
