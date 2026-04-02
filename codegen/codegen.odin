@@ -42,9 +42,12 @@ global_consts: map[string]llvm.ValueRef
 Fn_Info :: struct {
 	ret_type: llvm.TypeRef,
 	param_types: []llvm.TypeRef,
+	generic_params: []string,
 }
 
 fn_types: map[string]Fn_Info
+
+generic_type_map: map[string]string
 
 // Minimal value typing for LLVM generation.
 ValueInfo :: struct {
@@ -187,6 +190,10 @@ get_llvm_type :: proc(type_name: string) -> llvm.TypeRef {
 		if struct_ty, ok := struct_types[type_name]; ok {
 			return struct_ty
 		}
+		// Check generic type mapping
+		if resolved, ok := generic_type_map[type_name]; ok {
+			return get_llvm_type(resolved)
+		}
 	}
 	// Unknown type - use int64 as placeholder (for generic type parameters)
 	return llvm.LLVMInt64Type()
@@ -285,6 +292,10 @@ to_bool_i1 :: proc(ctx: ^CompilerCtx, v: ValueInfo) -> llvm.ValueRef {
 
 zext_i1_to_i32 :: proc(ctx: ^CompilerCtx, cond_i1: llvm.ValueRef) -> llvm.ValueRef {
 	return llvm.LLVMBuildZExt(ctx.builder, cond_i1, llvm.LLVMInt32Type(), "tobool_i32")
+}
+
+zext_i1_to_i64 :: proc(ctx: ^CompilerCtx, cond_i1: llvm.ValueRef) -> llvm.ValueRef {
+	return llvm.LLVMBuildZExt(ctx.builder, cond_i1, llvm.LLVMInt64Type(), "tobool_i64")
 }
 
 process_imports :: proc(prog: ^ast.Program, current_file: string, alloc: mem.Allocator, verbose: bool) -> bool {
@@ -413,6 +424,7 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 	enum_variants = make(map[string]map[string]int)
 	global_consts = make(map[string]llvm.ValueRef)
 	fn_types = make(map[string]Fn_Info)
+	generic_type_map = make(map[string]string)
 
 	defer {
 		llvm.LLVMDisposeBuilder(builder)
@@ -431,6 +443,7 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 			delete(fn_types[key].param_types)
 		}
 		delete(fn_types)
+		delete(generic_type_map)
 	}
 
 	for decl in prog.declarations {
@@ -744,13 +757,14 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 		fn_types[fn_name] = Fn_Info{
 			ret_type = ret_type,
 			param_types = param_types_copy,
+			generic_params = node.generic_params,
 		}
 		return
 	}
 
 	ret_type: llvm.TypeRef
 	ret_name := node.return_type.name
-	// Use i32 for int return types to match C convention for main
+	// Use i32 for int return types (matches literal type)
 	if ret_name == "" {
 		ret_type = llvm.LLVMInt32Type()
 	} else if ret_name == "int" || ret_name == "i32" {
@@ -813,6 +827,7 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	fn_types[fn_name] = Fn_Info{
 		ret_type = ret_type,
 		param_types = param_types_copy,
+		generic_params = node.generic_params,
 	}
 
 	entry_bb := llvm.LLVMAppendBasicBlock(fn, "entry")
@@ -967,7 +982,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				delete(var_name_c)
 				llvm.LLVMBuildStore(ctx.builder, v.val, alloca)
 				add_var(ctx, node.name, alloca, ptr_storage_ty, base_type, "")
-			} else if is_struct || base_type != "" {
+			} else if is_struct {
 				var_name_c := strings.clone_to_cstring(node.name)
 				alloca := llvm.LLVMBuildAlloca(
 					ctx.builder,
@@ -2017,7 +2032,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		   "==" {op = LLVMIntEQ} else if node.operator == "!=" {op = LLVMIntNE} else if node.operator == ">" {op = LLVMIntSGT} else if node.operator == ">=" {op = LLVMIntSGE} else if node.operator == "<" {op = LLVMIntSLT} else if node.operator == "<=" {op = LLVMIntSLE}
 
 		if left.ty != right.ty {
-			target_ty := llvm.LLVMInt64Type()
+			target_ty := llvm.LLVMInt32Type()
 			if left.ty == target_ty {
 				right.val = convert_type(ctx, right.val, right.ty, target_ty)
 				right.ty = target_ty

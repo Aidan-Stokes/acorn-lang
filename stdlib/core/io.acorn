@@ -1,2 +1,15 @@
-exit :: fn(code: int) {
-}
+// I/O utilities
+exit :: fn(code: int) { }
+
+read :: fn() -> string { return "" }
+write :: fn(s: string) { }
+
+read_file :: fn(path: string) -> string { return "" }
+write_file :: fn(path: string, contents: string) { }
+file_exists :: fn(path: string) -> bool { return false }
+
+get_env :: fn(name: string) -> string { return "" }
+set_env :: fn(name: string, value: string) { }
+
+get_cwd :: fn() -> string { return "" }
+get_args :: fn() -> []string { return []string{} }

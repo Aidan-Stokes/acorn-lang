@@ -1,25 +1,14 @@
-print<T> :: fn(x: T) -> int {
-    return 0
-}
+// Formatting utilities
+print_int :: fn(x: int) -> int { return 0 }
+print_str :: fn(s: string) -> int { return 0 }
+println_int :: fn(x: int) -> int { return 0 }
+println_str :: fn(s: string) -> int { return 0 }
 
-println<T> :: fn(x: T) -> int {
-    return 0
-}
+printf :: fn(fmt: string) -> int { return 0 }
 
-print_str :: fn(s: string) -> int {
-    print(s)
-    return 0
-}
+to_string_int :: fn(x: int) -> string { return "" }
+to_string_f64 :: fn(x: f64) -> string { return "" }
+to_string_bool :: fn(b: bool) -> string { return "" }
 
-println_str :: fn(s: string) -> int {
-    println(s)
-    return 0
-}
-
-printf :: fn(fmt: string, args: any) -> int {
-    return 0
-}
-
-to_string<T> :: fn(x: T) -> string {
-    return ""
-}
+format_int :: fn(x: int, base: int) -> string { return "" }
+format_float :: fn(x: f64, precision: int) -> string { return "" }

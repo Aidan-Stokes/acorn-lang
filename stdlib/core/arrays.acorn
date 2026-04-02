@@ -1,4 +1,13 @@
-len<T> :: fn(arr: []T) -> int { return 0 }
-get<T> :: fn(arr: []T, index: int) -> T { x: T; return x }
-set<T> :: fn(arr: []T, index: int, value: T) { }
-make<T> :: fn(size: int) -> []T { arr: []T; return arr }
+// Array utilities
+// Note: Generic function syntax is supported but requires codegen fixes
+len :: fn(arr: []int) -> int { return 0 }
+get :: fn(arr: []int, index: int) -> int { return 0 }
+set :: fn(arr: []int, index: int, value: int) { }
+
+len_str :: fn(arr: []string) -> int { return 0 }
+get_str :: fn(arr: []string, index: int) -> string { return "" }
+
+first :: fn(arr: []int) -> int { return 0 }
+last :: fn(arr: []int) -> int { return 0 }
+contains_int :: fn(arr: []int, value: int) -> bool { return false }
+find_int :: fn(arr: []int, value: int) -> int { return -1 }

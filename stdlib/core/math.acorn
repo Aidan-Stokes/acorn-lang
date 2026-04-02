@@ -1,29 +1,32 @@
+// Math utilities
 PI = 3.141592653589793
 E = 2.718281828459045
-TAU = 6.283185307179586
 
-abs<T> :: fn(x: T) -> T { return x }
+abs_int :: fn(x: int) -> int { return x }
+abs_f64 :: fn(x: f64) -> f64 { return x }
 
-floor :: fn(x: f64) -> f64 { return 0.0 }
-ceil :: fn(x: f64) -> f64 { return 0.0 }
-round :: fn(x: f64) -> f64 { return 0.0 }
-trunc :: fn(x: f64) -> f64 { return 0.0 }
+min_int :: fn(a: int, b: int) -> int { return a }
+max_int :: fn(a: int, b: int) -> int { return a }
 
-sqrt :: fn(x: f64) -> f64 { return 0.0 }
-pow :: fn(x: f64, y: f64) -> f64 { return 0.0 }
+sqrt :: fn(x: f64) -> f64 { return x }
+sin :: fn(x: f64) -> f64 { return x }
+cos :: fn(x: f64) -> f64 { return x }
+tan :: fn(x: f64) -> f64 { return x }
 
-sin :: fn(x: f64) -> f64 { return 0.0 }
-cos :: fn(x: f64) -> f64 { return 0.0 }
-tan :: fn(x: f64) -> f64 { return 0.0 }
+log :: fn(x: f64) -> f64 { return x }
+exp :: fn(x: f64) -> f64 { return x }
+pow :: fn(base: f64, exp: f64) -> f64 { return base }
 
-asin :: fn(x: f64) -> f64 { return 0.0 }
-acos :: fn(x: f64) -> f64 { return 0.0 }
-atan :: fn(x: f64) -> f64 { return 0.0 }
+floor :: fn(x: f64) -> f64 { return x }
+ceil :: fn(x: f64) -> f64 { return x }
+round :: fn(x: f64) -> f64 { return x }
 
-log :: fn(x: f64) -> f64 { return 0.0 }
-log2 :: fn(x: f64) -> f64 { return 0.0 }
-log10 :: fn(x: f64) -> f64 { return 0.0 }
-exp :: fn(x: f64) -> f64 { return 0.0 }
+is_nan :: fn(x: f64) -> bool { return false }
+is_inf :: fn(x: f64) -> bool { return false }
 
-deg2rad :: fn(d: f64) -> f64 { return 0.0 }
-rad2deg :: fn(r: f64) -> f64 { return 0.0 }
+to_radians :: fn(degrees: f64) -> f64 { return degrees * PI / 180.0 }
+to_degrees :: fn(radians: f64) -> f64 { return radians * 180.0 / PI }
+
+gcd :: fn(a: int, b: int) -> int { return a }
+lcm :: fn(a: int, b: int) -> int { return a }
+fibonacci :: fn(n: int) -> int { return n }
