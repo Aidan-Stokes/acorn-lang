@@ -682,8 +682,20 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 
 	ret_type: llvm.TypeRef
 	ret_name := node.return_type.name
+
+	// Handle generic type parameters - use i32 as default
+	is_generic_return := false
+	if len(node.generic_params) > 0 && ret_name != "" {
+		for gp in node.generic_params {
+			if ret_name == gp {
+				is_generic_return = true
+				break
+			}
+		}
+	}
+
 	// Use i32 for int return types (matches literal type)
-	if ret_name == "" {
+	if ret_name == "" || is_generic_return {
 		ret_type = llvm.LLVMInt32Type()
 	} else if ret_name == "int" || ret_name == "i32" {
 		ret_type = llvm.LLVMInt32Type()
@@ -714,7 +726,21 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	defer delete(param_types)
 	for i in 0 ..< param_count {
 		param_ty_name := node.params[i].type.name
-		if param_ty_name == "f64" || param_ty_name == "float" {
+
+		// Handle generic type parameters - use i32 as default
+		is_generic_param := false
+		if len(node.generic_params) > 0 {
+			for gp in node.generic_params {
+				if param_ty_name == gp {
+					is_generic_param = true
+					break
+				}
+			}
+		}
+
+		if is_generic_param {
+			param_types[i] = llvm.LLVMInt32Type()
+		} else if param_ty_name == "f64" || param_ty_name == "float" {
 			param_types[i] = llvm.LLVMDoubleType()
 		} else if param_ty_name == "f32" {
 			param_types[i] = llvm.LLVMDoubleType()
@@ -723,13 +749,13 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 		} else if param_ty_name == "bool" {
 			param_types[i] = llvm.LLVMInt1Type()
 		} else if param_ty_name == "int" || param_ty_name == "i32" {
-			param_types[i] = llvm.LLVMInt64Type()
+			param_types[i] = llvm.LLVMInt32Type()
 		} else if param_ty_name == "i8" || param_ty_name == "byte" {
 			param_types[i] = llvm.LLVMInt8Type()
 		} else if st, ok := struct_types[param_ty_name]; ok {
 			param_types[i] = st
 		} else {
-			param_types[i] = llvm.LLVMInt64Type()
+			param_types[i] = llvm.LLVMInt32Type()
 		}
 	}
 
@@ -2002,6 +2028,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			defer delete(callee_name_c)
 			fn_val := llvm.LLVMGetNamedFunction(ctx.module, callee_name_c)
 
+			// Handle generic function type resolution
 			fn_info, has_fn := fn_types[callee_name]
 			ret_type: llvm.TypeRef
 			param_tys: []llvm.TypeRef
@@ -2009,8 +2036,22 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			if has_fn {
 				ret_type = fn_info.ret_type
 				param_tys = fn_info.param_types
+
+				// If calling with explicit generic args, resolve concrete types
+				if len(node.callee.generic_args) > 0 && node.callee.generic_args != nil {
+					// Use the first generic arg to determine return type
+					if len(node.callee.generic_args) > 0 {
+						first_arg := node.callee.generic_args[0]
+						ret_type = get_llvm_type(first_arg.name)
+						
+						// Also substitute param types for generic params
+						for i := 0; i < len(param_tys); i += 1 {
+							param_tys[i] = get_llvm_type(first_arg.name)
+						}
+					}
+				}
 			} else {
-				ret_type = llvm.LLVMInt64Type()
+				ret_type = llvm.LLVMInt32Type()
 				param_tys = make([]llvm.TypeRef, 0)
 			}
 

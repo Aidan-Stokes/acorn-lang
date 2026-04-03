@@ -47,6 +47,24 @@ parse_fn_body :: proc(p: ^Parser, name: string, generic_params: []string = nil) 
 		return_type = parse_type(p)
 	}
 
+	where_constraints: [dynamic]string
+	if match(p, .WHERE) {
+		for {
+			// Skip the type parameter (e.g., T in "T: Numeric")
+			if check(p, .IDENT) {
+				advance(p)
+			}
+			// Expect colon and constraint name
+			if match(p, .COLON) {
+				constraint_name := expect(p, .IDENT)
+				append(&where_constraints, strings.clone(constraint_name.lexeme))
+			}
+			if !match(p, .COMMA) {
+				break
+			}
+		}
+	}
+
 	// Handle forward declarations (no body)
 	body: ^ast.Node
 	if check(p, .LBRACE) {
@@ -61,6 +79,7 @@ parse_fn_body :: proc(p: ^Parser, name: string, generic_params: []string = nil) 
 
 	fn_node := ast.new_fn_decl(name, params_slice, return_type, body)
 	fn_node.generic_params = generic_params
+	fn_node.where_constraints = where_constraints[:]
 	return fn_node
 }
 

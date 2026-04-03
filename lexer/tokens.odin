@@ -54,7 +54,8 @@ Token_Kind :: enum {
     CASE_ARROW,   // =>
     NEWLINE,
     SEMICOLON,
-    CARET,
+	CARET,
+	WHERE,
 }
 
 Token :: struct {
@@ -106,8 +107,9 @@ init_keywords :: proc() {
     keywords["false"] = .FALSE
     keywords["break"] = .BREAK
     keywords["continue"] = .CONTINUE
-    keywords["in"] = .IN
-    keywords_initialized = true
+	keywords["in"] = .IN
+	keywords["where"] = .WHERE
+	keywords_initialized = true
 }
 
 destroy_keywords :: proc() {

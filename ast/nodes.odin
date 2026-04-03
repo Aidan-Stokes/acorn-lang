@@ -70,12 +70,13 @@ Type_Kind :: enum {
 }
 
 Type_Info :: struct {
-    kind:            Type_Kind,
-    name:            string,
-    element_type:   ^Type_Info,
-    param_types:    []^Type_Info,
-    return_type:    ^Type_Info,
-    generic_params: []string,
+	kind:             Type_Kind,
+	name:             string,
+	element_type:     ^Type_Info,
+	param_types:      []^Type_Info,
+	return_type:      ^Type_Info,
+	generic_params:   []string,
+	where_constraints: []string,
 }
 
 Node :: struct {
@@ -110,10 +111,11 @@ Node :: struct {
     return_type: Type,
     body:        ^Node,
 
-    fields:         []Field,
-    enum_variants:  []Enum_Variant,
-    generic_params: []string,
-    generic_args:   []Type,
+	fields:         []Field,
+	enum_variants:  []Enum_Variant,
+	generic_params: []string,
+	generic_args:   []Type,
+	where_constraints: []string,
 
     cases: []^Node,
 

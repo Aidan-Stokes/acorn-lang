@@ -262,3 +262,13 @@ find_enum_variant_value :: proc(state: ^Codegen_State, enum_name: string, varian
 	}
 	return 0, false
 }
+
+substitute_generic_type :: proc(state: ^Codegen_State, type_name: string, generic_map: ^map[string]string) -> string {
+	if generic_map == nil {
+		return type_name
+	}
+	if resolved, ok := generic_map[type_name]; ok {
+		return resolved
+	}
+	return type_name
+}

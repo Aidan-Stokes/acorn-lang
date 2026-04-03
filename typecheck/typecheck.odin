@@ -469,6 +469,13 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
                     arg_type := make_type_info(node.callee.generic_args[i])
                     param_name := fn_type.generic_params[i]
                     generic_type_args[param_name] = arg_type
+
+                    if len(fn_type.where_constraints) > 0 {
+                        constraint := fn_type.where_constraints[0]
+                        if !type_satisfies_constraint(arg_type, constraint) {
+                            add_error(fmt.tprintf("Type '%s' does not satisfy constraint '%s'", arg_type.name, constraint), get_line(node), 0)
+                        }
+                    }
                 }
             }
             
@@ -838,4 +845,24 @@ type_name :: proc(t: ^ast.Type_Info) -> string {
     case:
         return "<unknown>"
     }
+}
+
+type_satisfies_constraint :: proc(t: ^ast.Type_Info, constraint: string) -> bool {
+    if constraint == "Numeric" {
+        type_name_str := type_name(t)
+        if type_name_str == "int" || type_name_str == "i32" || type_name_str == "i64" ||
+           type_name_str == "f32" || type_name_str == "f64" {
+            return true
+        }
+        return false
+    }
+    if constraint == "Comparable" {
+        type_name_str := type_name(t)
+        if type_name_str == "int" || type_name_str == "i32" || type_name_str == "i64" ||
+           type_name_str == "f32" || type_name_str == "f64" || type_name_str == "string" {
+            return true
+        }
+        return false
+    }
+    return true
 }
