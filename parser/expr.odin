@@ -24,7 +24,7 @@ parse_or :: proc(p: ^Parser) -> ^ast.Node {
     left := parse_and(p)
 
     for {
-        if match_seq2(p, .BAR, .BAR) {
+        if match_seq2(p, .BAR, .BAR) || match(p, .PIPE) {
             right := parse_and(p)
             left = ast.new_binary(left, "||", right)
         } else {
@@ -39,7 +39,7 @@ parse_and :: proc(p: ^Parser) -> ^ast.Node {
     left := parse_equality(p)
 
     for {
-        if match_seq2(p, .AMPERSAND, .AMPERSAND) {
+        if match_seq2(p, .AMPERSAND, .AMPERSAND) || match(p, .ANDAND) {
             right := parse_equality(p)
             left = ast.new_binary(left, "&&", right)
         } else {
@@ -54,10 +54,10 @@ parse_equality :: proc(p: ^Parser) -> ^ast.Node {
     left := parse_comparison(p)
 
     for {
-        if match_seq2(p, .EQUAL, .EQUAL) {
+        if match_seq2(p, .EQUAL, .EQUAL) || match(p, .EQUAL) {
             right := parse_comparison(p)
             left = ast.new_binary(left, "==", right)
-        } else if match_seq2(p, .BANG, .EQUAL) {
+        } else if match_seq2(p, .BANG, .EQUAL) || match(p, .BANG) {
             right := parse_comparison(p)
             left = ast.new_binary(left, "!=", right)
         } else {

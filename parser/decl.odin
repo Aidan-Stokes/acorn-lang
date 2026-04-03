@@ -50,7 +50,7 @@ parse_fn_body :: proc(p: ^Parser, name: string, generic_params: []string = nil) 
 	where_constraints: [dynamic]string
 	if match(p, .WHERE) {
 		for {
-			// Skip the type parameter (e.g., T in "T: Numeric")
+			// Skip the type parameter (e.g., T in "T: Comparable")
 			if check(p, .IDENT) {
 				advance(p)
 			}
@@ -58,6 +58,10 @@ parse_fn_body :: proc(p: ^Parser, name: string, generic_params: []string = nil) 
 			if match(p, .COLON) {
 				constraint_name := expect(p, .IDENT)
 				append(&where_constraints, strings.clone(constraint_name.lexeme))
+			}
+			// Handle && for multiple constraints
+			if match(p, .ANDAND) {
+				continue  // Continue to parse next constraint
 			}
 			if !match(p, .COMMA) {
 				break

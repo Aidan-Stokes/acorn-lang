@@ -51,9 +51,8 @@ destroy_state :: proc(state: ^Codegen_State) {
 
 get_llvm_type :: proc(state: ^Codegen_State, type_name: string) -> llvm.TypeRef {
 	switch type_name {
+	// Integer types (signed)
 	case "int":
-		return llvm.LLVMInt32Type()
-	case "u":
 		return llvm.LLVMInt32Type()
 	case "i32":
 		return llvm.LLVMInt32Type()
@@ -61,26 +60,35 @@ get_llvm_type :: proc(state: ^Codegen_State, type_name: string) -> llvm.TypeRef 
 		return llvm.LLVMInt16Type()
 	case "i8":
 		return llvm.LLVMInt8Type()
-	case "byte":
-		return llvm.LLVMInt8Type()
+	case "i64":
+		return llvm.LLVMInt64Type()
+	// Integer types (unsigned)
+	case "uint":
+		return llvm.LLVMInt32Type()
 	case "u8":
 		return llvm.LLVMInt8Type()
 	case "u16":
 		return llvm.LLVMInt16Type()
 	case "u32":
 		return llvm.LLVMInt32Type()
-	case "i64":
-		return llvm.LLVMInt64Type()
 	case "u64":
 		return llvm.LLVMInt64Type()
+	case "byte":
+		return llvm.LLVMInt8Type()
+	// Float types
 	case "f32":
 		return llvm.LLVMDoubleType()
 	case "f64":
 		return llvm.LLVMDoubleType()
+	case "float":
+		return llvm.LLVMDoubleType()
+	// Boolean
 	case "bool":
 		return llvm.LLVMInt1Type()
-	case "char", "rune":
+	// Characters
+	case "char":
 		return llvm.LLVMInt32Type()
+	// Strings
 	case "string":
 		return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 	case "str":

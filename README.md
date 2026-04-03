@@ -153,7 +153,7 @@ cd examples && ./run_all.sh
 |------|-------------|
 | `int` | Default integer (u64) |
 | `i32`, `i16`, `i8` | Signed integers |
-| `u`, `u32`, `u16`, `u8` | Unsigned integers |
+| `uint`, `u32`, `u16`, `u8` | Unsigned integers |
 | `f32`, `f64` | Floating point |
 | `bool` | Boolean (true/false) |
 | `char`, `rune` | Character (32-bit) |

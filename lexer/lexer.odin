@@ -450,6 +450,9 @@ next_token :: proc(l: ^Lexer) -> Token {
     case '!':
         return make_token(l, .BANG)
     case '&':
+        if match(l, '&') {
+            return make_token(l, .ANDAND)
+        }
         return make_token(l, .AMPERSAND)
     case '^':
         return make_token(l, .CARET)

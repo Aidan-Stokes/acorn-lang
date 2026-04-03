@@ -4,7 +4,7 @@ main :: fn() -> int {
     // int is usize_t equivalent (u64 on 64-bit)
     // u is platform unsigned (u64 on 64-bit)
     a: int <- 42
-    b: u <- 100
+    b: uint <- 100
     c: i32 <- 100
     d: i16 <- 1000
     e: i8 <- 5

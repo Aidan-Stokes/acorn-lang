@@ -143,40 +143,48 @@ verify_module :: proc(module: llvm.ModuleRef) -> bool {
 
 get_llvm_type :: proc(type_name: string) -> llvm.TypeRef {
 	switch type_name {
+	// Integer types (signed)
 	case "int":
-		return llvm.LLVMInt64Type()  // usize_t equivalent
-	case "u":
-		return llvm.LLVMInt64Type()  // platform unsigned (u64 on 64-bit)
+		return llvm.LLVMInt32Type()
 	case "i32":
 		return llvm.LLVMInt32Type()
 	case "i16":
 		return llvm.LLVMInt16Type()
 	case "i8":
 		return llvm.LLVMInt8Type()
-	case "byte":
-		return llvm.LLVMInt8Type()  // alias for u8
+	case "i64":
+		return llvm.LLVMInt64Type()
+	// Integer types (unsigned)
+	case "uint":
+		return llvm.LLVMInt32Type()
 	case "u8":
 		return llvm.LLVMInt8Type()
 	case "u16":
 		return llvm.LLVMInt16Type()
 	case "u32":
 		return llvm.LLVMInt32Type()
-	case "i64":
-		return llvm.LLVMInt64Type()
 	case "u64":
 		return llvm.LLVMInt64Type()
+	case "byte":
+		return llvm.LLVMInt8Type()
+	// Float types
 	case "f32":
 		return llvm.LLVMDoubleType()
 	case "f64":
 		return llvm.LLVMDoubleType()
+	case "float":
+		return llvm.LLVMDoubleType()
+	// Boolean
 	case "bool":
 		return llvm.LLVMInt1Type()
-	case "char", "rune":
-		return llvm.LLVMInt32Type()  // rune is unicode, 32-bit
+	// Characters
+	case "char":
+		return llvm.LLVMInt32Type()
+	// Strings
 	case "string":
-		return llvm.LLVMInt64Type()  // for now, pointer as int64
+		return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 	case "str":
-		return llvm.LLVMInt64Type()  // legacy alias
+		return llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 	case:
 		if struct_ty, ok := struct_types[type_name]; ok {
 			return struct_ty
@@ -186,8 +194,8 @@ get_llvm_type :: proc(type_name: string) -> llvm.TypeRef {
 			return get_llvm_type(resolved)
 		}
 	}
-	// Unknown type - use int64 as placeholder (for generic type parameters)
-	return llvm.LLVMInt64Type()
+	// Unknown type - use i32 as placeholder (for generic type parameters)
+	return llvm.LLVMInt32Type()
 }
 
 to_const0 :: proc(ty: llvm.TypeRef) -> llvm.ValueRef {

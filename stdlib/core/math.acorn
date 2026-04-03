@@ -12,9 +12,9 @@ pow :: fn(base: f64, exp: f64) -> f64 { return base }
 floor :: fn(x: f64) -> f64 { return x }
 ceil :: fn(x: f64) -> f64 { return x }
 
-abs<T> :: fn(x: T) -> T where T: Numeric { return x }
-min<T> :: fn(a: T, b: T) -> T where T: Numeric { return a }
-max<T> :: fn(a: T, b: T) -> T where T: Numeric { return a }
-clamp<T> :: fn(value: T, min_val: T, max_val: T) -> T where T: Numeric { return value }
+abs<T> :: fn(x: T) -> T where T: Negatable { return x }
+min<T> :: fn(a: T, b: T) -> T where T: Comparable { return a }
+max<T> :: fn(a: T, b: T) -> T where T: Comparable { return a }
+clamp<T> :: fn(value: T, lo: T, hi: T) -> T where T: Comparable { return value }
 
 gcd :: fn(a: int, b: int) -> int { return a }

@@ -11,10 +11,20 @@
 - Added generic functions to stdlib: arrays.acorn, strings.acorn, math.acorn, io.acorn, fmt.acorn
 - Note: Generic function calls still have codegen issues causing segfaults
 
+### Where Clause Constraints
+- Added `WHERE` token and `ANDAND` (&&) token to lexer
+- Parser can parse explicit generic syntax: `abs<int>(5)`
+- Parser supports where clauses with multiple constraints: `where T: Comparable && T: Addable`
+- Type checker validates 11 constraints: Equatable, Comparable, Addable, Subtractable, Multipliable, Divisible, Negatable, Showable, Integral, Floating, Byte_Equatable
+- Updated stdlib with constraints: math.acorn, arrays.acorn, strings.acorn
+
 ### Type System Fixes
 - Discovered and fixed type mismatch: `int` was i64 in get_llvm_type but i32 elsewhere
 - Standardized all integer handling to use i32 consistently
 - All 54 tests now pass (previously failing arithmetic tests)
+
+### Type Naming Change
+- Changed `u` to `uint` for unsigned integers (more descriptive)
 
 ## Recent Fixes (2026-03-26)
 
@@ -219,7 +229,7 @@ b: bool <- true
 s: str <- "hello"
 arr: []int <- [1, 2, 3]
 
-// Integer types: int (u64), u (uint), i32, i16, i8, u8, byte, u16, u32, u64, i64
+// Integer types: int (u64), uint, i32, i16, i8, u8, byte, u16, u32, u64, i64
 // Float types: f32, f64
 // Other: bool, char, rune, string
 
@@ -329,6 +339,7 @@ callback: fn(int, int) -> int
 - [x] `->` token for return types
 - [x] Function calls (`print(42)`)
 - [x] Generic type parameters (`<T>` in functions and structs)
+- [x] Where clause constraints (`where T: Constraint1 && T: Constraint2`)
 
 ### AST
 - [x] Enum declaration factory function

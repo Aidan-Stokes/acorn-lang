@@ -87,6 +87,31 @@ setup_builtins :: proc() {
     char_type.kind = .Named
     char_type.name = "char"
     current_scope.vars["char"] = char_type
+
+    uint_type := new(ast.Type_Info)
+    uint_type.kind = .Named
+    uint_type.name = "uint"
+    current_scope.vars["uint"] = uint_type
+
+    u8_type := new(ast.Type_Info)
+    u8_type.kind = .Named
+    u8_type.name = "u8"
+    current_scope.vars["u8"] = u8_type
+
+    u16_type := new(ast.Type_Info)
+    u16_type.kind = .Named
+    u16_type.name = "u16"
+    current_scope.vars["u16"] = u16_type
+
+    u32_type := new(ast.Type_Info)
+    u32_type.kind = .Named
+    u32_type.name = "u32"
+    current_scope.vars["u32"] = u32_type
+
+    u64_type := new(ast.Type_Info)
+    u64_type.kind = .Named
+    u64_type.name = "u64"
+    current_scope.vars["u64"] = u64_type
 }
 
 free_scope :: proc(s: ^Scope) {
@@ -249,7 +274,7 @@ is_pointer_type :: proc(name: string) -> bool {
 }
 
 is_integer_type_name :: proc(name: string) -> bool {
-    return name == "int" || name == "u" || name == "i32" || name == "i16" || 
+    return name == "int" || name == "uint" || name == "i32" || name == "i16" || 
            name == "i8" || name == "u8" || name == "u16" || name == "u32" || 
            name == "u64" || name == "i64" || name == "byte" || name == "char" || name == "rune"
 }

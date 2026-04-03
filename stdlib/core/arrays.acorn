@@ -1,11 +1,11 @@
 // Array utilities
 len<T> :: fn(arr: []T) -> int { return 0 }
-get<T> :: fn(arr: []T, index: int) -> T where T: Numeric { x: T; return x }
+get<T> :: fn(arr: []T, index: int) -> T where T: Negatable { x: T; return x }
 set<T> :: fn(arr: []T, index: int, value: T) { }
 first<T> :: fn(arr: []T) -> T { x: T; return x }
 last<T> :: fn(arr: []T) -> T { x: T; return x }
-contains<T> :: fn(arr: []T, value: T) -> bool { return false }
-find<T> :: fn(arr: []T, value: T) -> int { return -1 }
+contains<T> :: fn(arr: []T, value: T) -> bool where T: Equatable { return false }
+find<T> :: fn(arr: []T, value: T) -> int where T: Equatable { return -1 }
 push<T> :: fn(arr: []T, value: T) { }
 pop<T> :: fn(arr: []T) -> T { x: T; return x }
 slice<T> :: fn(arr: []T, start: int, end: int) -> []T { return arr }

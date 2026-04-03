@@ -56,6 +56,7 @@ Token_Kind :: enum {
     SEMICOLON,
 	CARET,
 	WHERE,
+	ANDAND,
 }
 
 Token :: struct {
