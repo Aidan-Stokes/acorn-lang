@@ -17,6 +17,6 @@ replace :: fn(s: string, old: string, new: string) -> string { return s }
 compare :: fn(a: string, b: string) -> int { return 0 }
 equals :: fn(a: string, b: string) -> bool { return false }
 
-from<T> :: fn(x: T) -> string { return "" }
+from<T> :: fn(x: T) -> string where T: Numeric { return "" }
 to_int :: fn(s: string) -> int { return 0 }
 to_f64 :: fn(s: string) -> f64 { return 0.0 }
