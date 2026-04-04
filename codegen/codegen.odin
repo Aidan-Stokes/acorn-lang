@@ -1413,6 +1413,197 @@ generate_llvm_input :: proc(ctx: ^CompilerCtx) -> ValueInfo {
 	return ValueInfo{val = arr_ptr, ty = char_ptr_ty}
 }
 
+generate_llvm_read_file :: proc(ctx: ^CompilerCtx, path_arg: ^ast.Node) -> ValueInfo {
+	char_ptr_ty := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+	
+	// Declare fopen if needed
+	fopen_name := strings.clone_to_cstring("fopen")
+	defer delete(fopen_name)
+	fopen_fn := llvm.LLVMGetNamedFunction(ctx.module, fopen_name)
+	if fopen_fn == nil {
+		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		ptr_tys := []llvm.TypeRef{i8ptr, i8ptr}
+		fopen_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 2, 0)
+		fopen_fn = llvm.LLVMAddFunction(ctx.module, fopen_name, fopen_ty)
+	}
+	
+	// Declare fread if needed
+	fread_name := strings.clone_to_cstring("fread")
+	defer delete(fread_name)
+	fread_fn := llvm.LLVMGetNamedFunction(ctx.module, fread_name)
+	if fread_fn == nil {
+		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		ptr_tys := []llvm.TypeRef{i8ptr, i8ptr, i8ptr, i8ptr}
+		fread_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 4, 0)
+		fread_fn = llvm.LLVMAddFunction(ctx.module, fread_name, fread_ty)
+	}
+	
+	// Declare fclose if needed
+	fclose_name := strings.clone_to_cstring("fclose")
+	defer delete(fclose_name)
+	fclose_fn := llvm.LLVMGetNamedFunction(ctx.module, fclose_name)
+	if fclose_fn == nil {
+		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		ptr_tys := []llvm.TypeRef{i8ptr}
+		fclose_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(ptr_tys), 1, 0)
+		fclose_fn = llvm.LLVMAddFunction(ctx.module, fclose_name, fclose_ty)
+	}
+	
+	// Allocate buffer for file content (max 1MB)
+	buf_size := 1024 * 1024
+	buf_ptr := llvm.LLVMBuildArrayAlloca(ctx.builder, llvm.LLVMInt8Type(), llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(buf_size), 0), "file_buffer")
+	
+	// Get the path string (from AST node or generated value)
+	path_str_arg := path_arg.string_value
+	path_str_c := strings.clone_to_cstring(path_str_arg)
+	defer delete(path_str_c)
+	path_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, path_str_c, "path_str")
+	
+	// Open file: fopen(path, "r")
+	
+	// Open file: fopen(path, "r")
+	mode_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, "r", "mode_str")
+	open_args := []llvm.ValueRef{path_str, mode_str}
+	file_ptr := llvm.LLVMBuildCall2(
+		ctx.builder,
+		llvm.LLVMFunctionType(char_ptr_ty, raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}), 2, 0),
+		fopen_fn,
+		raw_data(open_args),
+		2,
+		"file_ptr",
+	)
+	
+	// Read file: fread(buf, 1, buf_size, file)
+	one := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 1, 0)
+	buf_size_val := llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(buf_size), 0)
+	read_args := []llvm.ValueRef{buf_ptr, one, buf_size_val, file_ptr}
+	bytes_read := llvm.LLVMBuildCall2(
+		ctx.builder,
+		llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{char_ptr_ty, llvm.LLVMInt64Type(), llvm.LLVMInt64Type(), char_ptr_ty}), 4, 0),
+		fread_fn,
+		raw_data(read_args),
+		4,
+		"bytes_read",
+	)
+	
+	// Close file: fclose(file)
+	close_args := []llvm.ValueRef{file_ptr}
+	llvm.LLVMBuildCall2(
+		ctx.builder,
+		llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{char_ptr_ty}), 1, 0),
+		fclose_fn,
+		raw_data(close_args),
+		1,
+		"close_res",
+	)
+	
+	return ValueInfo{val = buf_ptr, ty = char_ptr_ty}
+}
+
+generate_llvm_write_file :: proc(ctx: ^CompilerCtx, path_arg, content_arg: ^ast.Node) -> ValueInfo {
+	char_ptr_ty := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+	
+	// Declare fopen if needed
+	fopen_name := strings.clone_to_cstring("fopen")
+	defer delete(fopen_name)
+	fopen_fn := llvm.LLVMGetNamedFunction(ctx.module, fopen_name)
+	if fopen_fn == nil {
+		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		ptr_tys := []llvm.TypeRef{i8ptr, i8ptr}
+		fopen_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 2, 0)
+		fopen_fn = llvm.LLVMAddFunction(ctx.module, fopen_name, fopen_ty)
+	}
+	
+	// Declare fwrite if needed
+	fwrite_name := strings.clone_to_cstring("fwrite")
+	defer delete(fwrite_name)
+	fwrite_fn := llvm.LLVMGetNamedFunction(ctx.module, fwrite_name)
+	if fwrite_fn == nil {
+		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		ptr_tys := []llvm.TypeRef{i8ptr, i8ptr, i8ptr, i8ptr}
+		fwrite_ty := llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data(ptr_tys), 4, 0)
+		fwrite_fn = llvm.LLVMAddFunction(ctx.module, fwrite_name, fwrite_ty)
+	}
+	
+	// Declare fclose if needed
+	fclose_name := strings.clone_to_cstring("fclose")
+	defer delete(fclose_name)
+	fclose_fn := llvm.LLVMGetNamedFunction(ctx.module, fclose_name)
+	if fclose_fn == nil {
+		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		ptr_tys := []llvm.TypeRef{i8ptr}
+		fclose_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(ptr_tys), 1, 0)
+		fclose_fn = llvm.LLVMAddFunction(ctx.module, fclose_name, fclose_ty)
+	}
+	
+	// Get the path string from AST node
+	path_str_arg := path_arg.string_value
+	path_str_c := strings.clone_to_cstring(path_str_arg)
+	defer delete(path_str_c)
+	path_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, path_str_c, "path_str")
+	
+	// Get content string
+	content_val := generate_llvm_expr(ctx, content_arg)
+	content_str := content_val.val
+	
+	// Open file: fopen(path, "w")
+	mode_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, "w", "mode_str")
+	open_args := []llvm.ValueRef{path_str, mode_str}
+	file_ptr := llvm.LLVMBuildCall2(
+		ctx.builder,
+		llvm.LLVMFunctionType(char_ptr_ty, raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}), 2, 0),
+		fopen_fn,
+		raw_data(open_args),
+		2,
+		"file_ptr",
+	)
+	
+	// Get content length (use strlen)
+	strlen_name := strings.clone_to_cstring("strlen")
+	defer delete(strlen_name)
+	strlen_fn := llvm.LLVMGetNamedFunction(ctx.module, strlen_name)
+	if strlen_fn == nil {
+		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+		ptr_tys := []llvm.TypeRef{i8ptr}
+		strlen_ty := llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data(ptr_tys), 1, 0)
+		strlen_fn = llvm.LLVMAddFunction(ctx.module, strlen_name, strlen_ty)
+	}
+	strlen_args := []llvm.ValueRef{content_str}
+	content_len := llvm.LLVMBuildCall2(
+		ctx.builder,
+		llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{char_ptr_ty}), 1, 0),
+		strlen_fn,
+		raw_data(strlen_args),
+		1,
+		"content_len",
+	)
+	
+	// Write file: fwrite(content, 1, len, file)
+	one := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 1, 0)
+	write_args := []llvm.ValueRef{content_str, one, content_len, file_ptr}
+	bytes_written := llvm.LLVMBuildCall2(
+		ctx.builder,
+		llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{char_ptr_ty, llvm.LLVMInt64Type(), llvm.LLVMInt64Type(), char_ptr_ty}), 4, 0),
+		fwrite_fn,
+		raw_data(write_args),
+		4,
+		"bytes_written",
+	)
+	
+	// Close file: fclose(file)
+	close_args := []llvm.ValueRef{file_ptr}
+	llvm.LLVMBuildCall2(
+		ctx.builder,
+		llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{char_ptr_ty}), 1, 0),
+		fclose_fn,
+		raw_data(close_args),
+		1,
+		"close_res",
+	)
+	
+	return ValueInfo{val = bytes_written, ty = llvm.LLVMInt64Type()}
+}
+
 generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.Node) -> llvm.ValueRef {
 	printf_name := strings.clone_to_cstring("printf")
 	defer delete(printf_name)
@@ -2064,6 +2255,92 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 				return ValueInfo {
 					val = result_val.val,
 					ty = result_val.ty,
+				}
+			}
+			if fn_name == "len" && len(node.arguments) == 1 && node.arguments[0].kind == .String_Literal {
+				str_node := node.arguments[0]
+				len_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(len(str_node.string_value)), 0)
+				return ValueInfo {
+					val = len_val,
+					ty = llvm.LLVMInt32Type(),
+				}
+			}
+			if fn_name == "read_file" && len(node.arguments) == 1 && node.arguments[0].kind == .String_Literal {
+				result_val := generate_llvm_read_file(ctx, node.arguments[0])
+				return ValueInfo {
+					val = result_val.val,
+					ty = result_val.ty,
+				}
+			}
+			if fn_name == "write_file" && len(node.arguments) == 2 && 
+			   node.arguments[0].kind == .String_Literal && node.arguments[1].kind == .String_Literal {
+				result_val := generate_llvm_write_file(ctx, node.arguments[0], node.arguments[1])
+				return ValueInfo {
+					val = result_val.val,
+					ty = result_val.ty,
+				}
+			}
+			// get_env(name) - get environment variable
+			if fn_name == "get_env" && len(node.arguments) == 1 && node.arguments[0].kind == .String_Literal {
+				env_name := node.arguments[0].string_value
+				env_c := strings.clone_to_cstring(env_name)
+				defer delete(env_c)
+				
+				// Declare getenv if needed
+				getenv_name := strings.clone_to_cstring("getenv")
+				defer delete(getenv_name)
+				getenv_fn := llvm.LLVMGetNamedFunction(ctx.module, getenv_name)
+				if getenv_fn == nil {
+					i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+					ptr_tys := []llvm.TypeRef{i8ptr}
+					getenv_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 1, 0)
+					getenv_fn = llvm.LLVMAddFunction(ctx.module, getenv_name, getenv_ty)
+				}
+				
+				env_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, env_c, "env_name")
+				args := []llvm.ValueRef{env_str}
+				env_val := llvm.LLVMBuildCall2(
+					ctx.builder,
+					llvm.LLVMFunctionType(llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}), 1, 0),
+					getenv_fn,
+					raw_data(args),
+					1,
+					"env_val",
+				)
+				return ValueInfo {
+					val = env_val,
+					ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0),
+				}
+			}
+			// exit(code) - exit program
+			if fn_name == "exit" && len(node.arguments) == 1 {
+				arg_val := generate_llvm_expr(ctx, node.arguments[0])
+				
+				// Declare exit if needed
+				exit_name := strings.clone_to_cstring("exit")
+				defer delete(exit_name)
+				exit_fn := llvm.LLVMGetNamedFunction(ctx.module, exit_name)
+				if exit_fn == nil {
+					ptr_tys := []llvm.TypeRef{llvm.LLVMInt32Type()}
+					exit_ty := llvm.LLVMFunctionType(llvm.LLVMVoidType(), raw_data(ptr_tys), 1, 0)
+					exit_fn = llvm.LLVMAddFunction(ctx.module, exit_name, exit_ty)
+				}
+				
+				args := []llvm.ValueRef{arg_val.val}
+				llvm.LLVMBuildCall2(
+					ctx.builder,
+					llvm.LLVMFunctionType(llvm.LLVMVoidType(), raw_data([]llvm.TypeRef{llvm.LLVMInt32Type()}), 1, 0),
+					exit_fn,
+					raw_data(args),
+					1,
+					"exit_call",
+				)
+				// Add unreachable after exit
+				unreachable_bb := llvm.LLVMAppendBasicBlock(ctx.fn, "unreachable")
+				llvm.LLVMPositionBuilderAtEnd(ctx.builder, unreachable_bb)
+				return ValueInfo {
+					val = arg_val.val,
+					ty = llvm.LLVMInt32Type(),
 				}
 			}
 		}

@@ -3,3 +3,4 @@ float : f32, f64
 boolean : bool
 characters : char
 strings : string
+generic : <T>

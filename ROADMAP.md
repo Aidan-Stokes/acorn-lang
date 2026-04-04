@@ -1,6 +1,6 @@
 # Acorn 1.0 - Implementation Roadmap
 
-## Recent Fixes (2026-04-01)
+## Recent Fixes (2026-04-03)
 
 ### Generic Type Support
 - Added generic type map (`generic_type_map`) in codegen for type substitution
@@ -9,7 +9,11 @@
 - Generic function declarations work: `abs<T> :: fn(x: T) -> T`
 - Added generic type resolution in `get_llvm_type` function
 - Added generic functions to stdlib: arrays.acorn, strings.acorn, math.acorn, io.acorn, fmt.acorn
-- Note: Generic function calls still have codegen issues causing segfaults
+- **Fully working**: Generic function calls like `abs<int>(-5)`, `min<int>`, `max<int>`
+- **Fully working**: Generic struct instantiation and field access: `c <- Container{value: 42}`; `c.value`
+- Fixed struct type tracking: `struct_type` now properly propagated through assignments
+- Fixed member access: field lookups use struct name to find field info in `struct_types` map
+- Array generic params (`[]T`) handled with pointer representation
 
 ### Where Clause Constraints
 - Added `WHERE` token and `ANDAND` (&&) token to lexer

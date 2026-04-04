@@ -151,7 +151,7 @@ cd examples && ./run_all.sh
 
 | Type | Description |
 |------|-------------|
-| `int` | Default integer (u64) |
+| `int` | Default integer |
 | `i32`, `i16`, `i8` | Signed integers |
 | `uint`, `u32`, `u16`, `u8` | Unsigned integers |
 | `f32`, `f64` | Floating point |
@@ -159,6 +159,33 @@ cd examples && ./run_all.sh
 | `char`, `rune` | Character (32-bit) |
 | `string`, `str` | String |
 | `[]T` | Dynamic arrays |
+
+### Generics
+
+Acorn supports explicit generic types with where clause constraints:
+
+```acorn
+// Generic struct
+Container<T> :: struct {
+    value: T
+}
+
+// Generic function with constraint
+abs<T> :: fn(x: T) -> T where T: Negatable { return x }
+
+// Explicit generic instantiation
+c <- Container{value: 42}
+print(c.value)
+print(abs<int>(-5))
+```
+
+**Constraints:**
+- `Negatable` - supports unary `-` operator
+- `Comparable` - supports `==`, `!=`, `<`, `>`, `<=`, `>=`
+- `Addable`, `Subtractable`, `Multipliable`, `Divisible` - arithmetic operators
+- `Equatable` - supports `==` and `!=`
+- `Showable` - can be printed
+- `Integral`, `Floating` - numeric type categories
 
 ## Roadmap
 
