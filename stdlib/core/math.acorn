@@ -1,6 +1,6 @@
 // Math utilities
 PI = 3.141592653589793
-E = 2.718281828459045
+e = 2.718281828459045
 
 sqrt :: fn(x: f64) -> f64 { return x }
 sin :: fn(x: f64) -> f64 { return x }
