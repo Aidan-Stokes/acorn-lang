@@ -1,0 +1,6 @@
+main :: fn() -> int {
+    arr: []int
+    l <- len(arr)
+    print(l)
+    return 0
+}
