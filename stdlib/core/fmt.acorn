@@ -1,11 +1,6 @@
 // Formatting utilities
-print_int :: fn(x: int) -> int { return 0 }
-print_str :: fn(s: string) -> int { return 0 }
-println_int :: fn(x: int) -> int { return 0 }
-println_str :: fn(s: string) -> int { return 0 }
+print<T> :: fn(x: T) -> int where T: Showable { return 0 }
+println<T> :: fn(x: T) -> int where T: Showable { return 0 }
 printf :: fn(fmt: string) -> int { return 0 }
-to_string_int :: fn(x: int) -> string { return "" }
-to_string_f64 :: fn(x: f64) -> string { return "" }
-to_string_bool :: fn(b: bool) -> string { return "" }
-format_int :: fn(x: int) -> string { return "" }
-format_float :: fn(x: f64) -> string { return "" }
+to_string<T> :: fn(x: T) -> string where T: Showable { return "" }
+format<T> :: fn(x: T) -> string where T: Showable { return "" }

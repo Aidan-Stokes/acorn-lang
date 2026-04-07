@@ -889,5 +889,42 @@ type_satisfies_constraint :: proc(t: ^ast.Type_Info, constraint: string) -> bool
         }
         return false
     }
+    if constraint == "Showable" {
+        type_name_str := type_name(t)
+        if type_name_str == "int" || type_name_str == "i32" || type_name_str == "i64" ||
+           type_name_str == "f32" || type_name_str == "f64" || type_name_str == "string" ||
+           type_name_str == "bool" || type_name_str == "char" || type_name_str == "rune" {
+            return true
+        }
+        return false
+    }
+    if constraint == "Equatable" {
+        return true
+    }
+    if constraint == "Addable" {
+        type_name_str := type_name(t)
+        if type_name_str == "int" || type_name_str == "i32" || type_name_str == "i64" ||
+           type_name_str == "f32" || type_name_str == "f64" || type_name_str == "string" {
+            return true
+        }
+        return false
+    }
+    if constraint == "Integral" {
+        type_name_str := type_name(t)
+        if type_name_str == "int" || type_name_str == "i32" || type_name_str == "i64" ||
+           type_name_str == "i16" || type_name_str == "i8" ||
+           type_name_str == "u32" || type_name_str == "u64" ||
+           type_name_str == "u16" || type_name_str == "u8" || type_name_str == "byte" {
+            return true
+        }
+        return false
+    }
+    if constraint == "Floating" {
+        type_name_str := type_name(t)
+        if type_name_str == "f32" || type_name_str == "f64" {
+            return true
+        }
+        return false
+    }
     return true
 }

@@ -2,6 +2,7 @@ package parser
 
 import "../ast"
 import "../lexer"
+import "core:strconv"
 import "core:strings"
 
 parse_declaration :: proc(p: ^Parser) -> ^ast.Node {
@@ -165,12 +166,17 @@ parse_type :: proc(p: ^Parser) -> ast.Type {
     }
 
     if match(p, .LBRACKET) {
+        array_size := 0
+        if check(p, .INT) {
+            size_tok := expect(p, .INT)
+            array_size, _ = strconv.parse_int(size_tok.lexeme)
+        }
         expect(p, .RBRACKET)
         elem_type := parse_type(p)
         return ast.Type {
             name = elem_type.name,
             is_array = true,
-            array_size = 0,
+            array_size = array_size,
             pointer_level = pointer_level,
             base_type = elem_type.name,
         }
