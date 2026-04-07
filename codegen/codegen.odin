@@ -2229,14 +2229,35 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 
 	case .Call_Expr:
 		// Builtin: print / println / printf
+		fn_name := ""
 		if node.callee != nil && node.callee.kind == .Ident {
-			fn_name := node.callee.name
+			fn_name = node.callee.name
 			if fn_name == "print" || fn_name == "println" {
 				return ValueInfo {
 					val = generate_llvm_print(ctx, node.arguments),
 					ty = llvm.LLVMInt32Type(),
 				}
 			}
+		}
+		// Handle fmt.X calls
+		if node.callee != nil && node.callee.kind == .Member_Expr {
+			obj := node.callee.object
+			if obj != nil {
+				fmt.println("DEBUG: Member_Expr obj kind:", obj.kind, " name:", obj.name)
+			}
+			if obj != nil && obj.kind == .Ident && obj.name == "fmt" {
+				fn_name = node.callee.field
+				fmt.println("DEBUG: fmt call, field:", fn_name)
+				if fn_name == "print" || fn_name == "println" {
+					return ValueInfo {
+						val = generate_llvm_print(ctx, node.arguments),
+						ty = llvm.LLVMInt32Type(),
+					}
+				}
+			}
+		}
+		if node.callee != nil && node.callee.kind == .Ident {
+			fn_name = node.callee.name
 			if fn_name == "printf" && len(node.arguments) > 0 && node.arguments[0].kind == .String_Literal {
 				return ValueInfo {
 					val = generate_llvm_printf(ctx, node.arguments[0].string_value, node.arguments[1:]),

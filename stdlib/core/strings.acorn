@@ -4,19 +4,10 @@ contains :: fn(s: string, substr: string) -> bool { return false }
 starts_with :: fn(s: string, prefix: string) -> bool { return false }
 ends_with :: fn(s: string, suffix: string) -> bool { return false }
 index_of :: fn(s: string, substr: string) -> int { return -1 }
-last_index_of :: fn(s: string, substr: string) -> int { return -1 }
-
 to_upper :: fn(s: string) -> string { return s }
 to_lower :: fn(s: string) -> string { return s }
 trim :: fn(s: string) -> string { return s }
-
 split :: fn(s: string, delimiter: string) -> []string { return []string }
 join :: fn(arr: []string, separator: string) -> string { return "" }
-replace :: fn(s: string, old: string, new: string) -> string { return s }
-
-compare :: fn(a: string, b: string) -> int { return 0 }
-equals :: fn(a: string, b: string) -> bool { return false }
-
-from<T> :: fn(x: T) -> string where T: Showable { return "" }
 to_int :: fn(s: string) -> int { return 0 }
 to_f64 :: fn(s: string) -> f64 { return 0.0 }
