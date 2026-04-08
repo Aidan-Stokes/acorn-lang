@@ -1,6 +1,6 @@
 // Formatting utilities
-print<T> :: fn(x: T) -> int where T: Showable { return 0 }
-println<T> :: fn(x: T) -> int where T: Showable { return 0 }
-printf :: fn(fmt: string) -> int { return 0 }
-to_string<T> :: fn(x: T) -> string where T: Showable { return "" }
-format<T> :: fn(x: T) -> string where T: Showable { return "" }
+print<T> :: fn(x: T) -> int where T: Showable
+println<T> :: fn(x: T) -> int where T: Showable
+printf :: fn(fmt: string) -> int
+to_string<T> :: fn(x: T) -> string where T: Showable
+format<T> :: fn(x: T) -> string where T: Showable

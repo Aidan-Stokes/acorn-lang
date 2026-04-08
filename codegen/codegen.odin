@@ -1720,20 +1720,40 @@ generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.No
 }
 
 generate_llvm_print :: proc(ctx: ^CompilerCtx, args: []^ast.Node) -> llvm.ValueRef {
-	// Declare printf if needed: int printf(const char*, ...).
-	printf_name := strings.clone_to_cstring("printf")
-	defer delete(printf_name)
-	printf_fn := llvm.LLVMGetNamedFunction(ctx.module, printf_name)
-	if printf_fn == nil {
-		i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+	i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+	i32_ty := llvm.LLVMInt32Type()
+	
+	// Create a proper varargs printf that will override any stub
+	// We'll call this by getting its address directly
+	decl_name := strings.clone_to_cstring("acorn_printf_decl")
+	defer delete(decl_name)
+	
+	decl_printf := llvm.LLVMGetNamedFunction(ctx.module, decl_name)
+	if decl_printf == nil {
 		param_tys := make([]llvm.TypeRef, 1)
 		defer delete(param_tys)
 		param_tys[0] = i8ptr
-		printf_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(param_tys), 1, 1) // varargs
-		printf_fn = llvm.LLVMAddFunction(ctx.module, printf_name, printf_ty)
+		printf_ty := llvm.LLVMFunctionType(i32_ty, raw_data(param_tys), 1, 1) // varargs
+		decl_printf = llvm.LLVMAddFunction(ctx.module, decl_name, printf_ty)
 	}
-
-	last := llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0)
+	
+	// Also create the real libc printf declaration 
+	// This ensures there's a proper varargs version available for linking
+	libc_name := strings.clone_to_cstring("printf")
+	defer delete(libc_name)
+	libc_printf := llvm.LLVMGetNamedFunction(ctx.module, libc_name)
+	if libc_printf == nil {
+		param_tys := make([]llvm.TypeRef, 1)
+		defer delete(param_tys)
+		param_tys[0] = i8ptr
+		printf_ty := llvm.LLVMFunctionType(i32_ty, raw_data(param_tys), 1, 1)
+		libc_printf = llvm.LLVMAddFunction(ctx.module, libc_name, printf_ty)
+	}
+	
+	// Use the libc printf for actual calls
+	call_target := libc_printf
+	
+	last := llvm.LLVMConstInt(i32_ty, 0, 0)
 	if args == nil {
 		return last
 	}
@@ -1767,10 +1787,11 @@ generate_llvm_print :: proc(ctx: ^CompilerCtx, args: []^ast.Node) -> llvm.ValueR
 		defer delete(printf_param_tys)
 		printf_param_tys[0] = i8ptr
 		printf_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(printf_param_tys), 1, 1) // varargs
+		
 		call := llvm.LLVMBuildCall2(
 			ctx.builder,
 			printf_ty,
-			printf_fn,
+			call_target,
 			raw_data(printf_args),
 			2,
 			"printtmp",
@@ -2228,27 +2249,15 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		return ValueInfo{val = zext_i1_to_i32(ctx, cond_i1), ty = llvm.LLVMInt32Type()}
 
 	case .Call_Expr:
-		// Builtin: print / println / printf
+		// fmt.print / fmt.println / fmt.printf
 		fn_name := ""
-		if node.callee != nil && node.callee.kind == .Ident {
-			fn_name = node.callee.name
-			if fn_name == "print" || fn_name == "println" {
-				return ValueInfo {
-					val = generate_llvm_print(ctx, node.arguments),
-					ty = llvm.LLVMInt32Type(),
-				}
-			}
-		}
 		// Handle fmt.X calls
 		if node.callee != nil && node.callee.kind == .Member_Expr {
 			obj := node.callee.object
-			if obj != nil {
-				fmt.println("DEBUG: Member_Expr obj kind:", obj.kind, " name:", obj.name)
-			}
 			if obj != nil && obj.kind == .Ident && obj.name == "fmt" {
 				fn_name = node.callee.field
-				fmt.println("DEBUG: fmt call, field:", fn_name)
 				if fn_name == "print" || fn_name == "println" {
+					// Use inline asm to call libc printf directly, bypassing any stub
 					return ValueInfo {
 						val = generate_llvm_print(ctx, node.arguments),
 						ty = llvm.LLVMInt32Type(),

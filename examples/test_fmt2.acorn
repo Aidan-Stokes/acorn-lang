@@ -1,0 +1,10 @@
+import "core:fmt"
+
+main :: fn() -> int {
+    fmt.println("Hello world!")
+    fmt.print("Number: ")
+    fmt.println(42)
+    fmt.println(3.14)
+    fmt.println(true)
+    return 0
+}
