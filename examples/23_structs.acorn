@@ -1,11 +1,13 @@
 Point :: struct { x: int, y: int }
 
+import "core:fmt"
+
 main :: fn() -> int {
     p: Point <- Point{x: 10, y: 20}
-    print("Point: (")
-    print(p.x)
-    print(", ")
-    print(p.y)
-    println(")")
+    fmt.print("Point: (")
+    fmt.print(p.x)
+    fmt.print(", ")
+    fmt.print(p.y)
+    fmt.println(")")
     return 0
 }

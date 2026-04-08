@@ -1,9 +1,11 @@
+import "core:fmt"
+
 // Variables with arrow assignment
 main :: fn() -> int {
     x : f64 <- 10
     y : f64 <- 20
     sum : f64 <- x + y
-    print(sum)  // prints 30
+    fmt.print(sum)  // prints 30
 
     return 0
 }

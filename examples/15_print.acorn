@@ -1,9 +1,11 @@
+import "core:fmt"
+
 // Print and println
 main :: fn() -> int {
-    print("Hello")
-    println("World")
-    print(42)
-    println(3.14)
+    fmt.print("Hello")
+    fmt.println("World")
+    fmt.print(42)
+    fmt.println(3.14)
     
     return 0
 }

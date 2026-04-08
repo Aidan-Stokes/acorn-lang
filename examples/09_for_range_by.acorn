@@ -1,9 +1,11 @@
+import "core:fmt"
+
 // For loops - range with step
 main :: fn() -> int {
     // Range with step
-    print("Even numbers:")
+    fmt.print("Even numbers:")
     for i in 0..6 by 2 {
-        print(i)  // prints 0, 2, 4, 6
+        fmt.print(i)  // prints 0, 2, 4, 6
     }
     
     return 0

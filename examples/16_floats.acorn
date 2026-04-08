@@ -1,3 +1,5 @@
+import "core:fmt"
+
 // Float literals
 main :: fn() -> int {
     // Note: Float arithmetic is currently converted to integers in output
@@ -5,12 +7,12 @@ main :: fn() -> int {
     pi <- 3.0
     e <- 2.0
     
-    print(pi)  // prints 3
-    print(e)   // prints 2
+    fmt.print(pi)  // prints 3
+    fmt.print(e)   // prints 2
     
     // Float addition (currently truncates to int)
     result <- pi + e
-    print(result)  // prints 5
+    fmt.print(result)  // prints 5
     
     return 0
 }

@@ -1,5 +1,7 @@
 // Basic function definition
+import "core:fmt"
+
 main :: fn() -> int {
-    print(42)
+    fmt.println("Hello, World!")
     return 0
 }

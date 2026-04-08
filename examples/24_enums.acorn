@@ -1,9 +1,11 @@
+import "core:fmt"
+
 main :: fn() -> int {
     TokenType :: enum {
         Int,
         Float,
         String,
     }
-    print("Enum done")
+    fmt.println("Enum done")
     return 0
 }

@@ -1,9 +1,11 @@
+import "core:fmt"
+
 Color :: enum { Red, Green, Blue }
 main :: fn() -> int {
     x <- Color.Green
     match x {
-        Color.Red => print("Red")
-        Color.Green => print("Green")
+        Color.Red => fmt.println("Red")
+        Color.Green => fmt.println("Green")
     }
     return 0
 }

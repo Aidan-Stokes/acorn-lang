@@ -1,33 +1,35 @@
 // Raw Strings Example
 // Raw strings use backticks and don't process escape sequences
 
+import "core:fmt"
+
 main :: fn() -> int {
     // Regular string - \n is a newline
-    print("Regular string with \\n escape:")
-    print("\n")
+    fmt.print("Regular string with \\n escape:")
+    fmt.println("")
     
     // Raw string - \n is literal backslash followed by n
-    print("Raw string with \\n literal:")
-    print(`\n`)
-    print("")
+    fmt.print("Raw string with \\n literal:")
+    fmt.print(`\n`)
+    fmt.println("")
     
     // Windows paths are easy with raw strings
     path <- `C:\Users\John\Documents\file.txt`
-    print("Windows path: ")
-    print(path)
-    print("")
+    fmt.print("Windows path: ")
+    fmt.print(path)
+    fmt.println("")
     
     // Regex patterns are easier
     pattern <- `https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
-    print("Regex pattern: ")
-    print(pattern)
-    print("")
+    fmt.print("Regex pattern: ")
+    fmt.print(pattern)
+    fmt.println("")
     
     // JSON-like content
     json <- `{"name": "Acorn", "version": "1.0"}`
-    print("JSON: ")
-    print(json)
-    print("")
+    fmt.print("JSON: ")
+    fmt.print(json)
+    fmt.println("")
     
     return 0
 }

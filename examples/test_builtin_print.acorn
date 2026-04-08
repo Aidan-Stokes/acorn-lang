@@ -1,5 +1,0 @@
-main :: fn() -> int {
-    print(42)
-    println("test")
-    return 0
-}

@@ -1,15 +1,17 @@
+import "core:fmt"
+
 // Logical operators
 main :: fn() -> int {
     a <- true
     b <- false
     
-    print(a && b)  // 0 (false)
-    print(a || b)  // 1 (true)
-    print(!a)      // 0 (false)
-    print(!b)      // 1 (true)
+    fmt.print(a && b)  // 0 (false)
+    fmt.print(a || b)  // 1 (true)
+    fmt.print(!a)      // 0 (false)
+    fmt.print(!b)      // 1 (true)
     
     // Combined
-    print(a && !b)  // 1 (true)
+    fmt.print(a && !b)  // 1 (true)
     
     return 0
 }

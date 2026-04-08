@@ -1,10 +1,11 @@
 // Comments Example
 // This file demonstrates single-line and block comments
 
+import "core:fmt"
+
 main :: fn() -> int {
     // Single-line comments start with //
-    print("Comments demo")
-    println("")
+    fmt.println("Comments demo")
     
     /* Block comments can span
        multiple lines and are useful
@@ -12,15 +13,13 @@ main :: fn() -> int {
     
     x <- 42  // or at the end of a line
     
-    print("x = ")
-    print(x)
-    println("")
+    fmt.print("x = ")
+    fmt.print(x)
+    fmt.println("")
     
-    /* Block comments can also be inline */ print("Inline!")
-    println("")
+    /* Block comments can also be inline */ fmt.println("Inline!")
     
-    print("Done!")
-    println("")
+    fmt.println("Done!")
     
     return 0
 }

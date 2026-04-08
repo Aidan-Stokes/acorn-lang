@@ -1,9 +1,11 @@
+import "core:fmt"
+
 // Typed array declarations
 main :: fn() -> int {
     arr: []int <- [1, 2, 3, 4, 5]
     
-    print(arr[0])  // prints 1
-    print(arr[4])  // prints 5
+    fmt.print(arr[0])  // prints 1
+    fmt.print(arr[4])  // prints 5
     
     return 0
 }

@@ -1,16 +1,18 @@
+import "core:fmt"
+
 // If/else statements
 main :: fn() -> int {
     x <- 10
     if (x > 5) {
-        print(1)  // prints 1
+        fmt.print(1)  // prints 1
     } else {
-        print(0)
+        fmt.print(0)
     }
 
     if (x < 5) {
-        print(0)
+        fmt.print(0)
     } else {
-        print(2)  // prints 2
+        fmt.print(2)  // prints 2
     }
 
     return 0

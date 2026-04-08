@@ -1,24 +1,25 @@
 // Scientific notation in Acorn
 // Supports: 1e10, 1.5e3, 3.14e-5, 1e-10, etc.
+import "core:fmt"
 
 main :: fn() {
     // Positive exponents
-    print(1e2);       // 100
-    print('\n');
-    print(1.5e3);      // 1500
-    print('\n');
-    print(2e8);        // 200000000
-    print('\n');
+    fmt.print(1e2);       // 100
+    fmt.println("");
+    fmt.print(1.5e3);      // 1500
+    fmt.println("");
+    fmt.print(2e8);        // 200000000
+    fmt.println("");
 
     // Negative exponents
-    print(1e-2);        // 0.01
-    print('\n');
-    print(3.14e-5);    // 0.0000314
-    print('\n');
-    print(1e-10);      // 0.0000000001
-    print('\n');
+    fmt.print(1e-2);        // 0.01
+    fmt.println("");
+    fmt.print(3.14e-5);    // 0.0000314
+    fmt.println("");
+    fmt.print(1e-10);      // 0.0000000001
+    fmt.println("");
 
     // With positive sign
-    print(1.5e+2);     // 150
-    print('\n');
+    fmt.print(1.5e+2);     // 150
+    fmt.println("");
 }

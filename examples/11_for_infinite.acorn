@@ -1,3 +1,5 @@
+import "core:fmt"
+
 // For loops - infinite loop with break
 main :: fn() -> int {
     n <- 0
@@ -10,7 +12,7 @@ main :: fn() -> int {
         }
     }
     
-    print(n)  // prints 3
+    fmt.print(n)  // prints 3
     
     return 0
 }

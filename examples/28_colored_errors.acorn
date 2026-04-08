@@ -8,11 +8,13 @@
 // To test error colors, uncomment the bad line below and run:
 //   ./acorn check 28_colored_errors.acorn
 
+import "core:fmt"
+
 main :: fn() -> int {
     // This will compile successfully
     x <- 10
     y <- 20
-    print(x + y)
+    fmt.println(x + y)
     return 0
 }
 

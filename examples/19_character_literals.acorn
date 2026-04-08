@@ -1,46 +1,47 @@
 // Character literals in Acorn
 // Characters are single-byte values (like ASCII)
+import "core:fmt"
 
 main :: fn() {
     // Basic characters
-    print('A');
-    print('\n');
+    fmt.print('A');
+    fmt.println("");
     
     // Escape sequences
-    print('H');
-    print('i');
-    print('\n');
+    fmt.print('H');
+    fmt.print('i');
+    fmt.println("");
     
     // Tab character
-    print('T');
-    print('\t');
-    print('B');
-    print('\n');
+    fmt.print('T');
+    fmt.print('\t');
+    fmt.print('B');
+    fmt.println("");
     
     // Newline
-    print('\n');
+    fmt.println("");
     
     // Backslash
-    print('\\');
-    print('\n');
+    fmt.print('\\');
+    fmt.println("");
     
     // Quote
-    print('\'');
-    print('\n');
+    fmt.print('\'');
+    fmt.println("");
     
     // Null character (prints as 0)
-    print('\0');
-    print('\n');
+    fmt.print('\0');
+    fmt.println("");
     
     // Hex escape \xNN
-    print('\x41');  // 'A' (ASCII 65)
-    print('\x42');  // 'B' (ASCII 66)
-    print('\x43');  // 'C' (ASCII 67)
-    print('\n');
+    fmt.print('\x41');  // 'A' (ASCII 65)
+    fmt.print('\x42');  // 'B' (ASCII 66)
+    fmt.print('\x43');  // 'C' (ASCII 67)
+    fmt.println("");
     
     // Characters have integer values
-    print(65);      // ASCII 'A'
-    print('\n');
-    print(97);       // ASCII 'a'
-    print('\n');
+    fmt.print(65);      // ASCII 'A'
+    fmt.println("");
+    fmt.print(97);       // ASCII 'a'
+    fmt.println("");
 }

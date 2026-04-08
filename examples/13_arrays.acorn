@@ -1,10 +1,12 @@
+import "core:fmt"
+
 // Array literals
 main :: fn() -> int {
     arr <- [1, 2, 3]
     
-    print(arr[0])  // prints 1
-    print(arr[1])  // prints 2
-    print(arr[2])  // prints 3
+    fmt.print(arr[0])  // prints 1
+    fmt.print(arr[1])  // prints 2
+    fmt.print(arr[2])  // prints 3
     
     return 0
 }
