@@ -1,8 +1,0 @@
-main :: fn() -> int {
-    print("Generics work!\n")
-    return 0
-}
-
-Container<T> :: struct {
-    value: T
-}

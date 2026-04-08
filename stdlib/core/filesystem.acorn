@@ -1,0 +1,47 @@
+// Filesystem utilities
+// Note: These are forward declarations - actual implementation handled by codegen
+
+// Check if file exists
+file_exists :: fn(path: string) -> bool { return false }
+
+// Check if path is a directory
+is_dir :: fn(path: string) -> bool { return false }
+
+// Check if path is a file
+is_file :: fn(path: string) -> bool { return false }
+
+// Get file size in bytes
+file_size :: fn(path: string) -> int { return 0 }
+
+// Read entire file contents
+read_file :: fn(path: string) -> string { return "" }
+
+// Write contents to file (overwrites existing)
+write_file :: fn(path: string, contents: string) { }
+
+// Append contents to file
+append_file :: fn(path: string, contents: string) { }
+
+// Delete a file
+remove_file :: fn(path: string) -> bool { return false }
+
+// Create a directory
+create_dir :: fn(path: string) -> bool { return false }
+
+// Remove a directory (must be empty)
+remove_dir :: fn(path: string) -> bool { return false }
+
+// List files in directory (returns array of filenames)
+list_dir :: fn(path: string) -> []string { return []string{} }
+
+// Copy file from source to destination
+copy_file :: fn(src: string, dest: string) -> bool { return false }
+
+// Rename/move file
+rename_file :: fn(old_path: string, new_path: string) -> bool { return false }
+
+// Get file permissions
+get_permissions :: fn(path: string) -> int { return 0 }
+
+// Set file permissions
+set_permissions :: fn(path: string, mode: int) -> bool { return false }

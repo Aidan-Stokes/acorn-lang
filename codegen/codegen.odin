@@ -1,10 +1,10 @@
 package codegen
 
 import "../ast"
+import llvm "../bindings/llvm"
 import "../common"
 import "../imports"
 import "../lexer"
-import llvm "../bindings/llvm"
 import "../parser"
 import "../typecheck"
 import "core:c"
@@ -19,7 +19,7 @@ import cu "codegen_utils"
 foreign import libc "system:c"
 
 foreign libc {
-	@(link_name="system")
+	@(link_name = "system")
 	c_system :: proc(cmd: cstring) -> c.int ---
 }
 
@@ -43,8 +43,8 @@ enum_variants: map[string]map[string]int
 global_consts: map[string]llvm.ValueRef
 
 Fn_Info :: struct {
-	ret_type: llvm.TypeRef,
-	param_types: []llvm.TypeRef,
+	ret_type:       llvm.TypeRef,
+	param_types:    []llvm.TypeRef,
 	generic_params: []string,
 }
 
@@ -54,9 +54,9 @@ generic_type_map: map[string]string
 
 // Minimal value typing for LLVM generation.
 ValueInfo :: struct {
-	val: llvm.ValueRef,
-	ty:  llvm.TypeRef,
-	base_type: string,   // For pointer types: the underlying type name (e.g., "float")
+	val:         llvm.ValueRef,
+	ty:          llvm.TypeRef,
+	base_type:   string, // For pointer types: the underlying type name (e.g., "float")
 	struct_type: string, // For struct values: the struct type name
 }
 
@@ -66,27 +66,34 @@ VarInfo :: struct {
 }
 
 Var_Entry :: struct {
-	name: string,
-	ptr: llvm.ValueRef,
-	ty: llvm.TypeRef,
-	base_type: string,   // For pointers: the underlying type name (e.g., "int", "float")
+	name:        string,
+	ptr:         llvm.ValueRef,
+	ty:          llvm.TypeRef,
+	base_type:   string, // For pointers: the underlying type name (e.g., "int", "float")
 	struct_type: string, // For struct variables: the struct type name
 }
 
 CompilerCtx :: struct {
-	module:       llvm.ModuleRef,
-	builder:      llvm.BuilderRef,
-	fn:           llvm.ValueRef,
-	fn_ret_type:  llvm.TypeRef,
-	fn_ret_name:  string,
-	break_bb:     llvm.BasicBlockRef,
-	continue_bb:  llvm.BasicBlockRef,
-	allocator:    mem.Allocator,
-	vars: #soa [dynamic]Var_Entry,
+	module:      llvm.ModuleRef,
+	builder:     llvm.BuilderRef,
+	fn:          llvm.ValueRef,
+	fn_ret_type: llvm.TypeRef,
+	fn_ret_name: string,
+	break_bb:    llvm.BasicBlockRef,
+	continue_bb: llvm.BasicBlockRef,
+	allocator:   mem.Allocator,
+	vars:        #soa[dynamic]Var_Entry,
 }
 
-		add_var :: proc(ctx: ^CompilerCtx, name: string, ptr: llvm.ValueRef, ty: llvm.TypeRef, base_type := "", struct_type := "") {
-	for i in 0..<len(ctx.vars) {
+add_var :: proc(
+	ctx: ^CompilerCtx,
+	name: string,
+	ptr: llvm.ValueRef,
+	ty: llvm.TypeRef,
+	base_type := "",
+	struct_type := "",
+) {
+	for i in 0 ..< len(ctx.vars) {
 		if ctx.vars[i].name == name {
 			ctx.vars[i].ptr = ptr
 			ctx.vars[i].ty = ty
@@ -95,16 +102,28 @@ CompilerCtx :: struct {
 			return
 		}
 	}
-	append(&ctx.vars, Var_Entry{
-		name = name,
-		ptr = ptr,
-		ty = ty,
-		base_type = base_type,
-		struct_type = struct_type,
-	})
+	append(
+		&ctx.vars,
+		Var_Entry {
+			name = name,
+			ptr = ptr,
+			ty = ty,
+			base_type = base_type,
+			struct_type = struct_type,
+		},
+	)
 }
 
-	find_var :: proc(ctx: ^CompilerCtx, name: string) -> (ptr: llvm.ValueRef, ty: llvm.TypeRef, base_type: string, struct_type: string, found: bool) {
+find_var :: proc(
+	ctx: ^CompilerCtx,
+	name: string,
+) -> (
+	ptr: llvm.ValueRef,
+	ty: llvm.TypeRef,
+	base_type: string,
+	struct_type: string,
+	found: bool,
+) {
 	for i := len(ctx.vars) - 1; i >= 0; i -= 1 {
 		entry := ctx.vars[i]
 		if entry.name == name {
@@ -114,12 +133,12 @@ CompilerCtx :: struct {
 	return nil, nil, "", "", false
 }
 
-	find_struct_field_index :: proc(struct_name: string, field_name: string) -> int {
+find_struct_field_index :: proc(struct_name: string, field_name: string) -> int {
 	if struct_name == "" {
 		return -1
 	}
 	if fields, ok := struct_fields[struct_name]; ok {
-		for i in 0..<len(fields) {
+		for i in 0 ..< len(fields) {
 			if fields[i] == field_name {
 				return i
 			}
@@ -128,7 +147,13 @@ CompilerCtx :: struct {
 	return -1
 }
 
-find_enum_variant_value :: proc(enum_name: string, variant_name: string) -> (value: int, found: bool) {
+find_enum_variant_value :: proc(
+	enum_name: string,
+	variant_name: string,
+) -> (
+	value: int,
+	found: bool,
+) {
 	if variant_map, ok := enum_variants[enum_name]; ok {
 		if val, ok := variant_map[variant_name]; ok {
 			return val, true
@@ -202,18 +227,20 @@ to_const0 :: proc(ty: llvm.TypeRef) -> llvm.ValueRef {
 	return cu.to_const0(ty)
 }
 
-convert_type :: proc(ctx: ^CompilerCtx, val: llvm.ValueRef, from_ty, to_ty: llvm.TypeRef) -> llvm.ValueRef {
+convert_type :: proc(
+	ctx: ^CompilerCtx,
+	val: llvm.ValueRef,
+	from_ty, to_ty: llvm.TypeRef,
+) -> llvm.ValueRef {
 	return cu.convert_type(ctx.builder, val, from_ty, to_ty)
 }
 
 // Convert a numeric value (i32/double) to an i1 boolean (0/1).
 to_bool_i1 :: proc(ctx: ^CompilerCtx, v: ValueInfo) -> llvm.ValueRef {
-	return cu.to_bool_i1(ctx.builder, cu.ValueInfo{
-		val = v.val,
-		ty = v.ty,
-		base_type = v.base_type,
-		struct_type = v.struct_type,
-	})
+	return cu.to_bool_i1(
+		ctx.builder,
+		cu.ValueInfo{val = v.val, ty = v.ty, base_type = v.base_type, struct_type = v.struct_type},
+	)
 }
 
 zext_i1_to_i32 :: proc(ctx: ^CompilerCtx, cond_i1: llvm.ValueRef) -> llvm.ValueRef {
@@ -224,7 +251,12 @@ zext_i1_to_i64 :: proc(ctx: ^CompilerCtx, cond_i1: llvm.ValueRef) -> llvm.ValueR
 	return cu.zext_i1_to_i64(ctx.builder, cond_i1)
 }
 
-process_imports :: proc(prog: ^ast.Program, current_file: string, alloc: mem.Allocator, verbose: bool) -> bool {
+process_imports :: proc(
+	prog: ^ast.Program,
+	current_file: string,
+	alloc: mem.Allocator,
+	verbose: bool,
+) -> bool {
 	import_nodes := [dynamic]^ast.Node{}
 	other_decls := [dynamic]^ast.Node{}
 
@@ -295,7 +327,13 @@ process_imports :: proc(prog: ^ast.Program, current_file: string, alloc: mem.All
 	return true
 }
 
-compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.Allocator = {}, verbose: bool = false, output_type: common.Output_Type = .Executable) -> bool {
+compile_llvm :: proc(
+	acorn_file: string,
+	output_file: string,
+	allocator: mem.Allocator = {},
+	verbose: bool = false,
+	output_type: common.Output_Type = .Executable,
+) -> bool {
 	alloc := allocator
 	if alloc.data == nil {
 		alloc = context.allocator
@@ -402,10 +440,6 @@ compile_llvm :: proc(acorn_file: string, output_file: string, allocator: mem.All
 	if verbose {
 		common.colorf(.Yellow, "  Verifying module...\n")
 	}
-	// if !verify_module(module) {
-	// 	common.print_error("Module verification failed", 0, 0)
-	// 	return false
-	// }
 
 	ir_cstr := llvm.LLVMPrintModuleToString(module)
 	ir := strings.clone(string(ir_cstr))
@@ -498,7 +532,7 @@ generate_llvm_struct :: proc(module: llvm.ModuleRef, node: ^ast.Node) {
 generate_llvm_enum :: proc(module: llvm.ModuleRef, node: ^ast.Node) {
 	enum_name := node.name
 	variant_map := make(map[string]int)
-	for i in 0..<len(node.enum_variants) {
+	for i in 0 ..< len(node.enum_variants) {
 		variant_map[node.enum_variants[i].name] = node.enum_variants[i].value
 	}
 	enum_variants[enum_name] = variant_map
@@ -603,7 +637,11 @@ generate_llvm_global_assign :: proc(module: llvm.ModuleRef, node: ^ast.Node) {
 	global_consts[name] = global_var
 }
 
-const_expr_value :: proc(module: llvm.ModuleRef, expected_ty: llvm.TypeRef, node: ^ast.Node) -> llvm.ValueRef {
+const_expr_value :: proc(
+	module: llvm.ModuleRef,
+	expected_ty: llvm.TypeRef,
+	node: ^ast.Node,
+) -> llvm.ValueRef {
 	if node == nil do return nil
 
 	#partial switch node.kind {
@@ -680,9 +718,9 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 
 		param_types_copy := make([]llvm.TypeRef, int(param_count))
 		copy(param_types_copy, param_types)
-		fn_types[fn_name] = Fn_Info{
-			ret_type = ret_type,
-			param_types = param_types_copy,
+		fn_types[fn_name] = Fn_Info {
+			ret_type       = ret_type,
+			param_types    = param_types_copy,
 			generic_params = node.generic_params,
 		}
 		return
@@ -773,12 +811,12 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	delete(fn_name_c)
 
 	param_types_copy := make([]llvm.TypeRef, param_count)
-	for i in 0..<param_count {
+	for i in 0 ..< param_count {
 		param_types_copy[i] = param_types[i]
 	}
-	fn_types[fn_name] = Fn_Info{
-		ret_type = ret_type,
-		param_types = param_types_copy,
+	fn_types[fn_name] = Fn_Info {
+		ret_type       = ret_type,
+		param_types    = param_types_copy,
 		generic_params = node.generic_params,
 	}
 
@@ -786,14 +824,14 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 	llvm.LLVMPositionBuilderAtEnd(builder, entry_bb)
 
 	ctx := CompilerCtx {
-		module       = module,
-		builder      = builder,
-		fn           = fn,
-		fn_ret_type  = ret_type,
-		fn_ret_name  = ret_name,
-		break_bb     = nil,
-		continue_bb  = nil,
-		allocator    = context.allocator,
+		module      = module,
+		builder     = builder,
+		fn          = fn,
+		fn_ret_type = ret_type,
+		fn_ret_name = ret_name,
+		break_bb    = nil,
+		continue_bb = nil,
+		allocator   = context.allocator,
 	}
 	defer {
 		delete(ctx.vars)
@@ -834,7 +872,12 @@ generate_llvm_fn :: proc(module: llvm.ModuleRef, builder: llvm.BuilderRef, node:
 			if ret_kind == .StructTypeKind {
 				// For struct returns, return a zero pointer (caller will handle properly)
 				zero := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
-				zero_ptr := llvm.LLVMBuildIntToPtr(ctx.builder, zero, ctx.fn_ret_type, "zero_struct")
+				zero_ptr := llvm.LLVMBuildIntToPtr(
+					ctx.builder,
+					zero,
+					ctx.fn_ret_type,
+					"zero_struct",
+				)
 				llvm.LLVMBuildRet(ctx.builder, zero_ptr)
 			} else if ctx.fn_ret_type == llvm.LLVMDoubleType() {
 				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
@@ -859,7 +902,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 	if node.kind == .Return_Stmt {
 		if node.value != nil {
 			v := generate_llvm_expr(ctx, node.value)
-			
+
 			// For struct returns, we need to load the value if it's still a pointer
 			ret_kind := llvm.LLVMGetTypeKind(ctx.fn_ret_type)
 			return_val := v.val
@@ -868,7 +911,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				loaded := llvm.LLVMBuildLoad2(ctx.builder, ctx.fn_ret_type, v.val, "ret_val")
 				return_val = loaded
 			}
-			
+
 			if v.ty == ctx.fn_ret_type {
 				llvm.LLVMBuildRet(ctx.builder, return_val)
 			} else {
@@ -879,7 +922,12 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 			ret_kind := llvm.LLVMGetTypeKind(ctx.fn_ret_type)
 			if ret_kind == .StructTypeKind {
 				zero_ptr := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 0, 0)
-				zero := llvm.LLVMBuildIntToPtr(ctx.builder, zero_ptr, ctx.fn_ret_type, "zero_struct")
+				zero := llvm.LLVMBuildIntToPtr(
+					ctx.builder,
+					zero_ptr,
+					ctx.fn_ret_type,
+					"zero_struct",
+				)
 				llvm.LLVMBuildRet(ctx.builder, zero)
 			} else if ctx.fn_ret_type == llvm.LLVMDoubleType() {
 				llvm.LLVMBuildRet(ctx.builder, llvm.LLVMConstReal(llvm.LLVMDoubleType(), 0.0))
@@ -905,7 +953,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 		is_array_type := node.return_type.is_array
 		pointer_level := node.return_type.pointer_level
 		base_type := node.return_type.base_type
-		
+
 		elem_ty := get_llvm_type(base_type)
 		is_struct := false
 		is_array := false
@@ -922,26 +970,18 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 
 			if pointer_level > 0 || kind == .PointerTypeKind {
 				ptr_storage_ty := llvm.LLVMPointerType(elem_ty, 0)
-				for i in 1..<pointer_level {
+				for i in 1 ..< pointer_level {
 					ptr_storage_ty = llvm.LLVMPointerType(ptr_storage_ty, 0)
 				}
 				var_name_c := strings.clone_to_cstring(node.name)
-				alloca := llvm.LLVMBuildAlloca(
-					ctx.builder,
-					ptr_storage_ty,
-					var_name_c,
-				)
+				alloca := llvm.LLVMBuildAlloca(ctx.builder, ptr_storage_ty, var_name_c)
 				delete(var_name_c)
 				llvm.LLVMBuildStore(ctx.builder, v.val, alloca)
 				add_var(ctx, node.name, alloca, ptr_storage_ty, base_type, "")
 			} else if is_struct {
 				var_name_c := strings.clone_to_cstring(node.name)
 				// Use v.ty for proper generic struct handling
-				alloca := llvm.LLVMBuildAlloca(
-					ctx.builder,
-					v.ty,
-					var_name_c,
-				)
+				alloca := llvm.LLVMBuildAlloca(ctx.builder, v.ty, var_name_c)
 				delete(var_name_c)
 				loaded := llvm.LLVMBuildLoad2(ctx.builder, v.ty, v.val, "struct_copy")
 				llvm.LLVMBuildStore(ctx.builder, loaded, alloca)
@@ -953,22 +993,14 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				add_var(ctx, node.name, alloca, v.ty, base_type, struct_type_name)
 			} else if is_array {
 				var_name_c := strings.clone_to_cstring(node.name)
-				alloca := llvm.LLVMBuildAlloca(
-					ctx.builder,
-					elem_ty,
-					var_name_c,
-				)
+				alloca := llvm.LLVMBuildAlloca(ctx.builder, elem_ty, var_name_c)
 				delete(var_name_c)
 				loaded := llvm.LLVMBuildLoad2(ctx.builder, elem_ty, v.val, "array_copy")
 				llvm.LLVMBuildStore(ctx.builder, loaded, alloca)
 				add_var(ctx, node.name, alloca, elem_ty, "", base_type)
 			} else {
 				var_name_c := strings.clone_to_cstring(node.name)
-				alloca := llvm.LLVMBuildAlloca(
-					ctx.builder,
-					elem_ty,
-					var_name_c,
-				)
+				alloca := llvm.LLVMBuildAlloca(ctx.builder, elem_ty, var_name_c)
 				delete(var_name_c)
 				if v.ty != elem_ty {
 					v.val = convert_type(ctx, v.val, v.ty, elem_ty)
@@ -1027,11 +1059,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 			if kind == .PointerTypeKind {
 				ptr_ty := llvm.LLVMPointerType(llvm.LLVMInt32Type(), 0)
 				target_c := strings.clone_to_cstring(node.target)
-				vi_ptr = llvm.LLVMBuildAlloca(
-					ctx.builder,
-					ptr_ty,
-					target_c,
-				)
+				vi_ptr = llvm.LLVMBuildAlloca(ctx.builder, ptr_ty, target_c)
 				delete(target_c)
 				vi_ty = ptr_ty
 			} else if v.struct_type != "" {
@@ -1039,11 +1067,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				// Don't load - just use it directly
 				vi_ty = v.ty
 				target_c := strings.clone_to_cstring(node.target)
-				vi_ptr = llvm.LLVMBuildAlloca(
-					ctx.builder,
-					vi_ty,
-					target_c,
-				)
+				vi_ptr = llvm.LLVMBuildAlloca(ctx.builder, vi_ty, target_c)
 				delete(target_c)
 				// Copy the struct from v.val to vi_ptr
 				loaded := llvm.LLVMBuildLoad2(ctx.builder, v.ty, v.val, "struct_copy")
@@ -1054,11 +1078,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				// Use v.ty directly for other types
 				vi_ty = v.ty
 				target_c := strings.clone_to_cstring(node.target)
-				vi_ptr = llvm.LLVMBuildAlloca(
-					ctx.builder,
-					vi_ty,
-					target_c,
-				)
+				vi_ptr = llvm.LLVMBuildAlloca(ctx.builder, vi_ty, target_c)
 				delete(target_c)
 			}
 			// Preserve struct_type
@@ -1208,11 +1228,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 		ctx.continue_bb = update_bb
 
 		for_var_c := strings.clone_to_cstring(node.for_var)
-		var_ptr := llvm.LLVMBuildAlloca(
-			ctx.builder,
-			llvm.LLVMInt32Type(),
-			for_var_c,
-		)
+		var_ptr := llvm.LLVMBuildAlloca(ctx.builder, llvm.LLVMInt32Type(), for_var_c)
 		delete(for_var_c)
 		add_var(ctx, node.for_var, var_ptr, llvm.LLVMInt32Type(), "", "")
 
@@ -1221,12 +1237,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 
 		llvm.LLVMPositionBuilderAtEnd(ctx.builder, cond_bb)
 		for_var_c = strings.clone_to_cstring(node.for_var)
-		current_val := llvm.LLVMBuildLoad2(
-			ctx.builder,
-			llvm.LLVMInt32Type(),
-			var_ptr,
-			for_var_c,
-		)
+		current_val := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMInt32Type(), var_ptr, for_var_c)
 		delete(for_var_c)
 
 		cmp_op := LLVMIntSLT
@@ -1244,12 +1255,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 
 		llvm.LLVMPositionBuilderAtEnd(ctx.builder, update_bb)
 		for_var_c = strings.clone_to_cstring(node.for_var)
-		current_val2 := llvm.LLVMBuildLoad2(
-			ctx.builder,
-			llvm.LLVMInt32Type(),
-			var_ptr,
-			for_var_c,
-		)
+		current_val2 := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMInt32Type(), var_ptr, for_var_c)
 		delete(for_var_c)
 		new_val := llvm.LLVMBuildAdd(ctx.builder, current_val2, step_val.val, "loop_inc")
 		llvm.LLVMBuildStore(ctx.builder, new_val, var_ptr)
@@ -1310,10 +1316,21 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 					match_int = llvm.LLVMBuildSExt(ctx.builder, match_val.val, cmp_ty, "match_ext")
 				}
 				if pattern_val.ty != llvm.LLVMInt64Type() {
-					pattern_int = llvm.LLVMBuildSExt(ctx.builder, pattern_val.val, cmp_ty, "pattern_ext")
+					pattern_int = llvm.LLVMBuildSExt(
+						ctx.builder,
+						pattern_val.val,
+						cmp_ty,
+						"pattern_ext",
+					)
 				}
 
-				cmp := llvm.LLVMBuildICmp(ctx.builder, LLVMIntEQ, match_int, pattern_int, "match_cmp")
+				cmp := llvm.LLVMBuildICmp(
+					ctx.builder,
+					LLVMIntEQ,
+					match_int,
+					pattern_int,
+					"match_cmp",
+				)
 				next_bb: llvm.BasicBlockRef
 				if i + 1 < len(node.match_patterns) {
 					next_bb = llvm.LLVMAppendBasicBlock(ctx.fn, "match_case_next")
@@ -1357,8 +1374,13 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 generate_llvm_read_line :: proc(ctx: ^CompilerCtx) -> ValueInfo {
 	char_ptr_ty := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 	arr_size := 4096
-	arr_ptr := llvm.LLVMBuildArrayAlloca(ctx.builder, llvm.LLVMInt8Type(), llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(arr_size), 0), "input_buffer")
-	
+	arr_ptr := llvm.LLVMBuildArrayAlloca(
+		ctx.builder,
+		llvm.LLVMInt8Type(),
+		llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(arr_size), 0),
+		"input_buffer",
+	)
+
 	scanf_name := strings.clone_to_cstring("scanf")
 	defer delete(scanf_name)
 	scanf_fn := llvm.LLVMGetNamedFunction(ctx.module, scanf_name)
@@ -1368,12 +1390,17 @@ generate_llvm_read_line :: proc(ctx: ^CompilerCtx) -> ValueInfo {
 		scanf_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(ptr_tys), 2, 1)
 		scanf_fn = llvm.LLVMAddFunction(ctx.module, scanf_name, scanf_ty)
 	}
-	
+
 	fmt_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, " %4095[^\n]", "input_fmt")
 	args := []llvm.ValueRef{fmt_str, arr_ptr}
 	call := llvm.LLVMBuildCall2(
 		ctx.builder,
-		llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}), 2, 1),
+		llvm.LLVMFunctionType(
+			llvm.LLVMInt32Type(),
+			raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}),
+			2,
+			1,
+		),
 		scanf_fn,
 		raw_data(args),
 		2,
@@ -1386,8 +1413,13 @@ generate_llvm_read_line :: proc(ctx: ^CompilerCtx) -> ValueInfo {
 generate_llvm_input :: proc(ctx: ^CompilerCtx) -> ValueInfo {
 	char_ptr_ty := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 	arr_size := 4096
-	arr_ptr := llvm.LLVMBuildArrayAlloca(ctx.builder, llvm.LLVMInt8Type(), llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(arr_size), 0), "input_buffer")
-	
+	arr_ptr := llvm.LLVMBuildArrayAlloca(
+		ctx.builder,
+		llvm.LLVMInt8Type(),
+		llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(arr_size), 0),
+		"input_buffer",
+	)
+
 	scanf_name := strings.clone_to_cstring("scanf")
 	defer delete(scanf_name)
 	scanf_fn := llvm.LLVMGetNamedFunction(ctx.module, scanf_name)
@@ -1398,12 +1430,17 @@ generate_llvm_input :: proc(ctx: ^CompilerCtx) -> ValueInfo {
 		scanf_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(ptr_tys), 2, 1)
 		scanf_fn = llvm.LLVMAddFunction(ctx.module, scanf_name, scanf_ty)
 	}
-	
+
 	fmt_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, " %4095[^\n]", "input_fmt")
 	args := []llvm.ValueRef{fmt_str, arr_ptr}
 	call := llvm.LLVMBuildCall2(
 		ctx.builder,
-		llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}), 2, 1),
+		llvm.LLVMFunctionType(
+			llvm.LLVMInt32Type(),
+			raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}),
+			2,
+			1,
+		),
 		scanf_fn,
 		raw_data(args),
 		2,
@@ -1415,7 +1452,7 @@ generate_llvm_input :: proc(ctx: ^CompilerCtx) -> ValueInfo {
 
 generate_llvm_read_file :: proc(ctx: ^CompilerCtx, path_arg: ^ast.Node) -> ValueInfo {
 	char_ptr_ty := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
-	
+
 	// Declare fopen if needed
 	fopen_name := strings.clone_to_cstring("fopen")
 	defer delete(fopen_name)
@@ -1426,7 +1463,7 @@ generate_llvm_read_file :: proc(ctx: ^CompilerCtx, path_arg: ^ast.Node) -> Value
 		fopen_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 2, 0)
 		fopen_fn = llvm.LLVMAddFunction(ctx.module, fopen_name, fopen_ty)
 	}
-	
+
 	// Declare fread if needed
 	fread_name := strings.clone_to_cstring("fread")
 	defer delete(fread_name)
@@ -1437,7 +1474,7 @@ generate_llvm_read_file :: proc(ctx: ^CompilerCtx, path_arg: ^ast.Node) -> Value
 		fread_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 4, 0)
 		fread_fn = llvm.LLVMAddFunction(ctx.module, fread_name, fread_ty)
 	}
-	
+
 	// Declare fclose if needed
 	fclose_name := strings.clone_to_cstring("fclose")
 	defer delete(fclose_name)
@@ -1448,44 +1485,66 @@ generate_llvm_read_file :: proc(ctx: ^CompilerCtx, path_arg: ^ast.Node) -> Value
 		fclose_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(ptr_tys), 1, 0)
 		fclose_fn = llvm.LLVMAddFunction(ctx.module, fclose_name, fclose_ty)
 	}
-	
+
 	// Allocate buffer for file content (max 1MB)
 	buf_size := 1024 * 1024
-	buf_ptr := llvm.LLVMBuildArrayAlloca(ctx.builder, llvm.LLVMInt8Type(), llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(buf_size), 0), "file_buffer")
-	
+	buf_ptr := llvm.LLVMBuildArrayAlloca(
+		ctx.builder,
+		llvm.LLVMInt8Type(),
+		llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(buf_size), 0),
+		"file_buffer",
+	)
+
 	// Get the path string (from AST node or generated value)
 	path_str_arg := path_arg.string_value
 	path_str_c := strings.clone_to_cstring(path_str_arg)
 	defer delete(path_str_c)
 	path_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, path_str_c, "path_str")
-	
+
 	// Open file: fopen(path, "r")
-	
+
 	// Open file: fopen(path, "r")
 	mode_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, "r", "mode_str")
 	open_args := []llvm.ValueRef{path_str, mode_str}
 	file_ptr := llvm.LLVMBuildCall2(
 		ctx.builder,
-		llvm.LLVMFunctionType(char_ptr_ty, raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}), 2, 0),
+		llvm.LLVMFunctionType(
+			char_ptr_ty,
+			raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}),
+			2,
+			0,
+		),
 		fopen_fn,
 		raw_data(open_args),
 		2,
 		"file_ptr",
 	)
-	
+
 	// Read file: fread(buf, 1, buf_size, file)
 	one := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 1, 0)
 	buf_size_val := llvm.LLVMConstInt(llvm.LLVMInt64Type(), u64(buf_size), 0)
 	read_args := []llvm.ValueRef{buf_ptr, one, buf_size_val, file_ptr}
 	bytes_read := llvm.LLVMBuildCall2(
 		ctx.builder,
-		llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{char_ptr_ty, llvm.LLVMInt64Type(), llvm.LLVMInt64Type(), char_ptr_ty}), 4, 0),
+		llvm.LLVMFunctionType(
+			llvm.LLVMInt64Type(),
+			raw_data(
+				[]llvm.TypeRef {
+					char_ptr_ty,
+					llvm.LLVMInt64Type(),
+					llvm.LLVMInt64Type(),
+					char_ptr_ty,
+				},
+			),
+			4,
+			0,
+		),
 		fread_fn,
 		raw_data(read_args),
 		4,
 		"bytes_read",
 	)
-	
+
 	// Close file: fclose(file)
 	close_args := []llvm.ValueRef{file_ptr}
 	llvm.LLVMBuildCall2(
@@ -1496,13 +1555,16 @@ generate_llvm_read_file :: proc(ctx: ^CompilerCtx, path_arg: ^ast.Node) -> Value
 		1,
 		"close_res",
 	)
-	
+
 	return ValueInfo{val = buf_ptr, ty = char_ptr_ty}
 }
 
-generate_llvm_write_file :: proc(ctx: ^CompilerCtx, path_arg, content_arg: ^ast.Node) -> ValueInfo {
+generate_llvm_write_file :: proc(
+	ctx: ^CompilerCtx,
+	path_arg, content_arg: ^ast.Node,
+) -> ValueInfo {
 	char_ptr_ty := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
-	
+
 	// Declare fopen if needed
 	fopen_name := strings.clone_to_cstring("fopen")
 	defer delete(fopen_name)
@@ -1513,7 +1575,7 @@ generate_llvm_write_file :: proc(ctx: ^CompilerCtx, path_arg, content_arg: ^ast.
 		fopen_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 2, 0)
 		fopen_fn = llvm.LLVMAddFunction(ctx.module, fopen_name, fopen_ty)
 	}
-	
+
 	// Declare fwrite if needed
 	fwrite_name := strings.clone_to_cstring("fwrite")
 	defer delete(fwrite_name)
@@ -1524,7 +1586,7 @@ generate_llvm_write_file :: proc(ctx: ^CompilerCtx, path_arg, content_arg: ^ast.
 		fwrite_ty := llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data(ptr_tys), 4, 0)
 		fwrite_fn = llvm.LLVMAddFunction(ctx.module, fwrite_name, fwrite_ty)
 	}
-	
+
 	// Declare fclose if needed
 	fclose_name := strings.clone_to_cstring("fclose")
 	defer delete(fclose_name)
@@ -1535,29 +1597,34 @@ generate_llvm_write_file :: proc(ctx: ^CompilerCtx, path_arg, content_arg: ^ast.
 		fclose_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(ptr_tys), 1, 0)
 		fclose_fn = llvm.LLVMAddFunction(ctx.module, fclose_name, fclose_ty)
 	}
-	
+
 	// Get the path string from AST node
 	path_str_arg := path_arg.string_value
 	path_str_c := strings.clone_to_cstring(path_str_arg)
 	defer delete(path_str_c)
 	path_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, path_str_c, "path_str")
-	
+
 	// Get content string
 	content_val := generate_llvm_expr(ctx, content_arg)
 	content_str := content_val.val
-	
+
 	// Open file: fopen(path, "w")
 	mode_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, "w", "mode_str")
 	open_args := []llvm.ValueRef{path_str, mode_str}
 	file_ptr := llvm.LLVMBuildCall2(
 		ctx.builder,
-		llvm.LLVMFunctionType(char_ptr_ty, raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}), 2, 0),
+		llvm.LLVMFunctionType(
+			char_ptr_ty,
+			raw_data([]llvm.TypeRef{char_ptr_ty, char_ptr_ty}),
+			2,
+			0,
+		),
 		fopen_fn,
 		raw_data(open_args),
 		2,
 		"file_ptr",
 	)
-	
+
 	// Get content length (use strlen)
 	strlen_name := strings.clone_to_cstring("strlen")
 	defer delete(strlen_name)
@@ -1577,19 +1644,31 @@ generate_llvm_write_file :: proc(ctx: ^CompilerCtx, path_arg, content_arg: ^ast.
 		1,
 		"content_len",
 	)
-	
+
 	// Write file: fwrite(content, 1, len, file)
 	one := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 1, 0)
 	write_args := []llvm.ValueRef{content_str, one, content_len, file_ptr}
 	bytes_written := llvm.LLVMBuildCall2(
 		ctx.builder,
-		llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{char_ptr_ty, llvm.LLVMInt64Type(), llvm.LLVMInt64Type(), char_ptr_ty}), 4, 0),
+		llvm.LLVMFunctionType(
+			llvm.LLVMInt64Type(),
+			raw_data(
+				[]llvm.TypeRef {
+					char_ptr_ty,
+					llvm.LLVMInt64Type(),
+					llvm.LLVMInt64Type(),
+					char_ptr_ty,
+				},
+			),
+			4,
+			0,
+		),
 		fwrite_fn,
 		raw_data(write_args),
 		4,
 		"bytes_written",
 	)
-	
+
 	// Close file: fclose(file)
 	close_args := []llvm.ValueRef{file_ptr}
 	llvm.LLVMBuildCall2(
@@ -1600,11 +1679,15 @@ generate_llvm_write_file :: proc(ctx: ^CompilerCtx, path_arg, content_arg: ^ast.
 		1,
 		"close_res",
 	)
-	
+
 	return ValueInfo{val = bytes_written, ty = llvm.LLVMInt64Type()}
 }
 
-generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.Node) -> llvm.ValueRef {
+generate_llvm_printf :: proc(
+	ctx: ^CompilerCtx,
+	fmt_str: string,
+	args: []^ast.Node,
+) -> llvm.ValueRef {
 	printf_name := strings.clone_to_cstring("printf")
 	defer delete(printf_name)
 	printf_fn := llvm.LLVMGetNamedFunction(ctx.module, printf_name)
@@ -1621,7 +1704,7 @@ generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.No
 	i := 0
 	for i < len(fmt_str) {
 		ch := fmt_str[i]
-		
+
 		if ch == '%' {
 			if i + 1 < len(fmt_str) && fmt_str[i + 1] == '%' {
 				append(&result, '%')
@@ -1629,12 +1712,20 @@ generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.No
 				i += 2
 				continue
 			}
-			
+
 			spec_end := i
 			for spec_end < len(fmt_str) {
 				c := fmt_str[spec_end]
-				if c == 'd' || c == 'i' || c == 'u' || c == 'f' || c == 'F' || 
-				   c == 'e' || c == 'E' || c == 'g' || c == 'G' || c == 's' {
+				if c == 'd' ||
+				   c == 'i' ||
+				   c == 'u' ||
+				   c == 'f' ||
+				   c == 'F' ||
+				   c == 'e' ||
+				   c == 'E' ||
+				   c == 'g' ||
+				   c == 'G' ||
+				   c == 's' {
 					if arg_idx < len(args) {
 						for k := i; k <= spec_end; k += 1 {
 							append(&result, fmt_str[k])
@@ -1653,7 +1744,7 @@ generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.No
 			}
 			continue
 		}
-		
+
 		if ch == '\\' && i + 1 < len(fmt_str) {
 			next := fmt_str[i + 1]
 			switch next {
@@ -1678,7 +1769,7 @@ generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.No
 			i += 2
 			continue
 		}
-		
+
 		append(&result, ch)
 		i += 1
 	}
@@ -1706,7 +1797,12 @@ generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.No
 		}
 	}
 
-	printf_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(arg_types), uint(arg_count), 1)
+	printf_ty := llvm.LLVMFunctionType(
+		llvm.LLVMInt32Type(),
+		raw_data(arg_types),
+		uint(arg_count),
+		1,
+	)
 	call := llvm.LLVMBuildCall2(
 		ctx.builder,
 		printf_ty,
@@ -1722,12 +1818,12 @@ generate_llvm_printf :: proc(ctx: ^CompilerCtx, fmt_str: string, args: []^ast.No
 generate_llvm_print :: proc(ctx: ^CompilerCtx, args: []^ast.Node) -> llvm.ValueRef {
 	i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
 	i32_ty := llvm.LLVMInt32Type()
-	
+
 	// Create a proper varargs printf that will override any stub
 	// We'll call this by getting its address directly
 	decl_name := strings.clone_to_cstring("acorn_printf_decl")
 	defer delete(decl_name)
-	
+
 	decl_printf := llvm.LLVMGetNamedFunction(ctx.module, decl_name)
 	if decl_printf == nil {
 		param_tys := make([]llvm.TypeRef, 1)
@@ -1736,8 +1832,8 @@ generate_llvm_print :: proc(ctx: ^CompilerCtx, args: []^ast.Node) -> llvm.ValueR
 		printf_ty := llvm.LLVMFunctionType(i32_ty, raw_data(param_tys), 1, 1) // varargs
 		decl_printf = llvm.LLVMAddFunction(ctx.module, decl_name, printf_ty)
 	}
-	
-	// Also create the real libc printf declaration 
+
+	// Also create the real libc printf declaration
 	// This ensures there's a proper varargs version available for linking
 	libc_name := strings.clone_to_cstring("printf")
 	defer delete(libc_name)
@@ -1749,10 +1845,10 @@ generate_llvm_print :: proc(ctx: ^CompilerCtx, args: []^ast.Node) -> llvm.ValueR
 		printf_ty := llvm.LLVMFunctionType(i32_ty, raw_data(param_tys), 1, 1)
 		libc_printf = llvm.LLVMAddFunction(ctx.module, libc_name, printf_ty)
 	}
-	
+
 	// Use the libc printf for actual calls
 	call_target := libc_printf
-	
+
 	last := llvm.LLVMConstInt(i32_ty, 0, 0)
 	if args == nil {
 		return last
@@ -1769,7 +1865,12 @@ generate_llvm_print :: proc(ctx: ^CompilerCtx, args: []^ast.Node) -> llvm.ValueR
 			if av.ty == i8ptr {
 				fmt_str = "%s\n"
 			} else if av.ty == llvm.LLVMInt1Type() {
-				av.val = llvm.LLVMBuildZExt(ctx.builder, av.val, llvm.LLVMInt32Type(), "bool_to_int")
+				av.val = llvm.LLVMBuildZExt(
+					ctx.builder,
+					av.val,
+					llvm.LLVMInt32Type(),
+					"bool_to_int",
+				)
 				av.ty = llvm.LLVMInt32Type()
 			}
 		}
@@ -1787,7 +1888,7 @@ generate_llvm_print :: proc(ctx: ^CompilerCtx, args: []^ast.Node) -> llvm.ValueR
 		defer delete(printf_param_tys)
 		printf_param_tys[0] = i8ptr
 		printf_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data(printf_param_tys), 1, 1) // varargs
-		
+
 		call := llvm.LLVMBuildCall2(
 			ctx.builder,
 			printf_ty,
@@ -1896,10 +1997,16 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		if node.fields != nil && len(node.fields) > 0 {
 			// Create ALLOCA for the struct (not pointer to it)
 			struct_ptr := llvm.LLVMBuildAlloca(ctx.builder, struct_ty, "struct_tmp")
-			for i in 0..<len(node.fields) {
+			for i in 0 ..< len(node.fields) {
 				field_val := generate_llvm_expr(ctx, node.fields[i].value)
 				field_name_c := strings.clone_to_cstring(node.fields[i].name)
-				field_ptr := llvm.LLVMBuildStructGEP2(ctx.builder, struct_ty, struct_ptr, uint(i), field_name_c)
+				field_ptr := llvm.LLVMBuildStructGEP2(
+					ctx.builder,
+					struct_ty,
+					struct_ptr,
+					uint(i),
+					field_name_c,
+				)
 				delete(field_name_c)
 				field_elem_ty := llvm.LLVMStructGetTypeAtIndex(struct_ty, uint(i))
 				if field_val.ty != field_elem_ty {
@@ -1931,10 +2038,19 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			}
 			if gv, ok := global_consts[node.field]; ok {
 				init_val := llvm.LLVMGetInitializer(gv)
-				loaded_ptr := llvm.LLVMBuildAlloca(ctx.builder, llvm.LLVMTypeOf(init_val), "const_tmp")
+				loaded_ptr := llvm.LLVMBuildAlloca(
+					ctx.builder,
+					llvm.LLVMTypeOf(init_val),
+					"const_tmp",
+				)
 				llvm.LLVMBuildStore(ctx.builder, init_val, loaded_ptr)
 				name_c := strings.clone_to_cstring(node.field)
-				loaded_val := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMTypeOf(init_val), loaded_ptr, name_c)
+				loaded_val := llvm.LLVMBuildLoad2(
+					ctx.builder,
+					llvm.LLVMTypeOf(init_val),
+					loaded_ptr,
+					name_c,
+				)
 				delete(name_c)
 				return ValueInfo{val = loaded_val, ty = llvm.LLVMTypeOf(init_val)}
 			}
@@ -1944,12 +2060,18 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		obj_ptr := obj_val.val
 		if obj_ptr == nil {
 			fmt.printf("ERROR: member access on nil object\n")
-			return ValueInfo{val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0), ty = llvm.LLVMInt32Type()}
+			return ValueInfo {
+				val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0),
+				ty = llvm.LLVMInt32Type(),
+			}
 		}
 		obj_ty := obj_val.ty
 		if obj_ty == nil {
 			fmt.printf("ERROR: member access on unknown type\n")
-			return ValueInfo{val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0), ty = llvm.LLVMInt32Type()}
+			return ValueInfo {
+				val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0),
+				ty = llvm.LLVMInt32Type(),
+			}
 		}
 		kind := llvm.LLVMGetTypeKind(obj_ty)
 		if kind != .PointerTypeKind {
@@ -1983,11 +2105,25 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		}
 		field_idx := find_struct_field_index(struct_name, node.field)
 		if field_idx < 0 || obj_ty == nil {
-			fmt.printf("ERROR: field '%s' not found in struct '%s' (obj_ty=%p)\n", node.field, struct_name, obj_ty)
-			return ValueInfo{val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0), ty = llvm.LLVMInt32Type()}
+			fmt.printf(
+				"ERROR: field '%s' not found in struct '%s' (obj_ty=%p)\n",
+				node.field,
+				struct_name,
+				obj_ty,
+			)
+			return ValueInfo {
+				val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0),
+				ty = llvm.LLVMInt32Type(),
+			}
 		}
 		field_name_c := strings.clone_to_cstring(node.field)
-		field_ptr := llvm.LLVMBuildStructGEP2(ctx.builder, obj_ty, obj_ptr, uint(field_idx), field_name_c)
+		field_ptr := llvm.LLVMBuildStructGEP2(
+			ctx.builder,
+			obj_ty,
+			obj_ptr,
+			uint(field_idx),
+			field_name_c,
+		)
 		delete(field_name_c)
 		field_elem_ty := llvm.LLVMStructGetTypeAtIndex(obj_ty, uint(field_idx))
 		loaded_val := llvm.LLVMBuildLoad2(ctx.builder, field_elem_ty, field_ptr, "field_val")
@@ -2023,10 +2159,19 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		if !found {
 			if gv, ok := global_consts[node.name]; ok {
 				init_val := llvm.LLVMGetInitializer(gv)
-				loaded_ptr := llvm.LLVMBuildAlloca(ctx.builder, llvm.LLVMTypeOf(init_val), "const_tmp")
+				loaded_ptr := llvm.LLVMBuildAlloca(
+					ctx.builder,
+					llvm.LLVMTypeOf(init_val),
+					"const_tmp",
+				)
 				llvm.LLVMBuildStore(ctx.builder, init_val, loaded_ptr)
 				name_c := strings.clone_to_cstring(node.name)
-				loaded_val := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMTypeOf(init_val), loaded_ptr, name_c)
+				loaded_val := llvm.LLVMBuildLoad2(
+					ctx.builder,
+					llvm.LLVMTypeOf(init_val),
+					loaded_ptr,
+					name_c,
+				)
 				delete(name_c)
 				return ValueInfo{val = loaded_val, ty = llvm.LLVMTypeOf(init_val)}
 			}
@@ -2038,25 +2183,13 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 					check_struct_type = vi_base_type
 				}
 				if _, ok := struct_types[check_struct_type]; ok {
-					return ValueInfo {
-						val = vi_ptr,
-						ty = vi_ty,
-						struct_type = check_struct_type,
-					}
+					return ValueInfo{val = vi_ptr, ty = vi_ty, struct_type = check_struct_type}
 				}
 			}
 			name_c := strings.clone_to_cstring(node.name)
-			val := llvm.LLVMBuildLoad2(
-				ctx.builder,
-				vi_ty,
-				vi_ptr,
-				name_c,
-			)
+			val := llvm.LLVMBuildLoad2(ctx.builder, vi_ty, vi_ptr, name_c)
 			delete(name_c)
-			return ValueInfo {
-				val = val,
-				ty = vi_ty,
-			}
+			return ValueInfo{val = val, ty = vi_ty}
 		}
 		return ValueInfo {
 			val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0),
@@ -2096,18 +2229,12 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 						elem_ty = llvm.LLVMDoubleType()
 					}
 					ptr_ty := llvm.LLVMPointerType(elem_ty, 0)
-					return ValueInfo {
-						val = var_ptr,
-						ty = ptr_ty,
-					}
+					return ValueInfo{val = var_ptr, ty = ptr_ty}
 				}
 			}
 			// Fallback
 			ptr_ty := llvm.LLVMPointerType(operand.ty, 0)
-			return ValueInfo {
-				val = operand.val,
-				ty = ptr_ty,
-			}
+			return ValueInfo{val = operand.val, ty = ptr_ty}
 		}
 		if node.operator == "^" {
 			// Dereference: load from pointer
@@ -2170,7 +2297,10 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			if node.operator ==
 			   "*" {return ValueInfo{val = llvm.LLVMBuildMul(ctx.builder, left.val, right.val, "multmp"), ty = llvm.LLVMInt32Type()}}
 			if node.operator == "%" {
-				return ValueInfo{val = llvm.LLVMBuildSRem(ctx.builder, left.val, right.val, "remtmp"), ty = llvm.LLVMInt32Type()}
+				return ValueInfo {
+					val = llvm.LLVMBuildSRem(ctx.builder, left.val, right.val, "remtmp"),
+					ty = llvm.LLVMInt32Type(),
+				}
 			}
 			return ValueInfo {
 				val = llvm.LLVMBuildSDiv(ctx.builder, left.val, right.val, "divtmp"),
@@ -2257,65 +2387,164 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			if obj != nil && obj.kind == .Ident && obj.name == "fmt" {
 				fn_name = node.callee.field
 				if fn_name == "print" || fn_name == "println" {
-					// Use inline asm to call libc printf directly, bypassing any stub
 					return ValueInfo {
 						val = generate_llvm_print(ctx, node.arguments),
 						ty = llvm.LLVMInt32Type(),
 					}
 				}
 			}
+			// Handle os.X calls
+			if obj != nil && obj.kind == .Ident && obj.name == "os" {
+				fn_name = node.callee.field
+				if fn_name == "exit" && len(node.arguments) == 1 {
+					arg_val := generate_llvm_expr(ctx, node.arguments[0])
+					exit_name := strings.clone_to_cstring("exit")
+					defer delete(exit_name)
+					exit_fn := llvm.LLVMGetNamedFunction(ctx.module, exit_name)
+					if exit_fn == nil {
+						ptr_tys := []llvm.TypeRef{llvm.LLVMInt32Type()}
+						exit_ty := llvm.LLVMFunctionType(llvm.LLVMVoidType(), raw_data(ptr_tys), 1, 0)
+						exit_fn = llvm.LLVMAddFunction(ctx.module, exit_name, exit_ty)
+					}
+					args := []llvm.ValueRef{arg_val.val}
+					llvm.LLVMBuildCall2(
+						ctx.builder,
+						llvm.LLVMFunctionType(llvm.LLVMVoidType(), raw_data([]llvm.TypeRef{llvm.LLVMInt32Type()}), 1, 0),
+						exit_fn,
+						raw_data(args),
+						1,
+						"",
+					)
+					return ValueInfo{val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0), ty = llvm.LLVMInt32Type()}
+				}
+				if fn_name == "get_env" && len(node.arguments) == 1 && node.arguments[0].kind == .String_Literal {
+					env_name := node.arguments[0].string_value
+					env_c := strings.clone_to_cstring(env_name)
+					defer delete(env_c)
+					getenv_name := strings.clone_to_cstring("getenv")
+					defer delete(getenv_name)
+					getenv_fn := llvm.LLVMGetNamedFunction(ctx.module, getenv_name)
+					if getenv_fn == nil {
+						i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+						ptr_tys := []llvm.TypeRef{i8ptr}
+						getenv_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 1, 0)
+						getenv_fn = llvm.LLVMAddFunction(ctx.module, getenv_name, getenv_ty)
+					}
+					env_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, env_c, "env_name")
+					env_val := llvm.LLVMBuildCall2(
+						ctx.builder,
+						llvm.LLVMFunctionType(
+							llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0),
+							raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}),
+							1, 0,
+						),
+						getenv_fn,
+						raw_data([]llvm.ValueRef{env_str}),
+						1, "env_val",
+					)
+					return ValueInfo{val = env_val, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+				}
+			}
+			// Handle time.X calls
+			if obj != nil && obj.kind == .Ident && obj.name == "time" {
+				fn_name = node.callee.field
+				if fn_name == "sleep" && len(node.arguments) == 1 {
+					arg_val := generate_llvm_expr(ctx, node.arguments[0])
+					usleep_name := strings.clone_to_cstring("usleep")
+					defer delete(usleep_name)
+					usleep_fn := llvm.LLVMGetNamedFunction(ctx.module, usleep_name)
+					if usleep_fn == nil {
+						usleep_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{llvm.LLVMInt32Type()}), 1, 0)
+						usleep_fn = llvm.LLVMAddFunction(ctx.module, usleep_name, usleep_ty)
+					}
+					// Convert ms to microseconds
+					mul_val := llvm.LLVMBuildMul(ctx.builder, arg_val.val, llvm.LLVMConstInt(llvm.LLVMInt32Type(), 1000, 0), "ms_to_us")
+					llvm.LLVMBuildCall2(
+						ctx.builder,
+						llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{llvm.LLVMInt32Type()}), 1, 0),
+						usleep_fn,
+						raw_data([]llvm.ValueRef{mul_val}),
+						1, "usleep_call",
+					)
+					return ValueInfo{val = llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0), ty = llvm.LLVMInt32Type()}
+				}
+				if fn_name == "time" {
+					time_name := strings.clone_to_cstring("time")
+					defer delete(time_name)
+					time_fn := llvm.LLVMGetNamedFunction(ctx.module, time_name)
+					if time_fn == nil {
+						i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+						time_ty := llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{i8ptr}), 1, 0)
+						time_fn = llvm.LLVMAddFunction(ctx.module, time_name, time_ty)
+					}
+					// Use alloca to create null pointer
+					null_ptr_alloca := llvm.LLVMBuildAlloca(ctx.builder, llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), "null_ptr")
+					empty_args := []llvm.ValueRef{null_ptr_alloca}
+					time_val := llvm.LLVMBuildCall2(
+						ctx.builder,
+						llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}), 1, 0),
+						time_fn,
+						raw_data(empty_args),
+						1, "time_val",
+					)
+					return ValueInfo{val = time_val, ty = llvm.LLVMInt64Type()}
+				}
+			}
 		}
 		if node.callee != nil && node.callee.kind == .Ident {
 			fn_name = node.callee.name
-			if fn_name == "printf" && len(node.arguments) > 0 && node.arguments[0].kind == .String_Literal {
+			if fn_name == "printf" &&
+			   len(node.arguments) > 0 &&
+			   node.arguments[0].kind == .String_Literal {
 				return ValueInfo {
-					val = generate_llvm_printf(ctx, node.arguments[0].string_value, node.arguments[1:]),
+					val = generate_llvm_printf(
+						ctx,
+						node.arguments[0].string_value,
+						node.arguments[1:],
+					),
 					ty = llvm.LLVMInt32Type(),
 				}
 			}
 			if fn_name == "read_line" {
 				result_val := generate_llvm_read_line(ctx)
-				return ValueInfo {
-					val = result_val.val,
-					ty = result_val.ty,
-				}
+				return ValueInfo{val = result_val.val, ty = result_val.ty}
 			}
 			if fn_name == "input" {
 				result_val := generate_llvm_input(ctx)
-				return ValueInfo {
-					val = result_val.val,
-					ty = result_val.ty,
-				}
+				return ValueInfo{val = result_val.val, ty = result_val.ty}
 			}
-			if fn_name == "len" && len(node.arguments) == 1 && node.arguments[0].kind == .String_Literal {
+			if fn_name == "len" &&
+			   len(node.arguments) == 1 &&
+			   node.arguments[0].kind == .String_Literal {
 				str_node := node.arguments[0]
-				len_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(len(str_node.string_value)), 0)
-				return ValueInfo {
-					val = len_val,
-					ty = llvm.LLVMInt32Type(),
-				}
+				len_val := llvm.LLVMConstInt(
+					llvm.LLVMInt32Type(),
+					u64(len(str_node.string_value)),
+					0,
+				)
+				return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
 			}
-			if fn_name == "read_file" && len(node.arguments) == 1 && node.arguments[0].kind == .String_Literal {
+			if fn_name == "read_file" &&
+			   len(node.arguments) == 1 &&
+			   node.arguments[0].kind == .String_Literal {
 				result_val := generate_llvm_read_file(ctx, node.arguments[0])
-				return ValueInfo {
-					val = result_val.val,
-					ty = result_val.ty,
-				}
+				return ValueInfo{val = result_val.val, ty = result_val.ty}
 			}
-			if fn_name == "write_file" && len(node.arguments) == 2 && 
-			   node.arguments[0].kind == .String_Literal && node.arguments[1].kind == .String_Literal {
+			if fn_name == "write_file" &&
+			   len(node.arguments) == 2 &&
+			   node.arguments[0].kind == .String_Literal &&
+			   node.arguments[1].kind == .String_Literal {
 				result_val := generate_llvm_write_file(ctx, node.arguments[0], node.arguments[1])
-				return ValueInfo {
-					val = result_val.val,
-					ty = result_val.ty,
-				}
+				return ValueInfo{val = result_val.val, ty = result_val.ty}
 			}
 			// get_env(name) - get environment variable
-			if fn_name == "get_env" && len(node.arguments) == 1 && node.arguments[0].kind == .String_Literal {
+			if fn_name == "get_env" &&
+			   len(node.arguments) == 1 &&
+			   node.arguments[0].kind == .String_Literal {
 				env_name := node.arguments[0].string_value
 				env_c := strings.clone_to_cstring(env_name)
 				defer delete(env_c)
-				
+
 				// Declare getenv if needed
 				getenv_name := strings.clone_to_cstring("getenv")
 				defer delete(getenv_name)
@@ -2326,26 +2555,28 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 					getenv_ty := llvm.LLVMFunctionType(i8ptr, raw_data(ptr_tys), 1, 0)
 					getenv_fn = llvm.LLVMAddFunction(ctx.module, getenv_name, getenv_ty)
 				}
-				
+
 				env_str := llvm.LLVMBuildGlobalStringPtr(ctx.builder, env_c, "env_name")
 				args := []llvm.ValueRef{env_str}
 				env_val := llvm.LLVMBuildCall2(
 					ctx.builder,
-					llvm.LLVMFunctionType(llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}), 1, 0),
+					llvm.LLVMFunctionType(
+						llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0),
+						raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}),
+						1,
+						0,
+					),
 					getenv_fn,
 					raw_data(args),
 					1,
 					"env_val",
 				)
-				return ValueInfo {
-					val = env_val,
-					ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0),
-				}
+				return ValueInfo{val = env_val, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
 			}
 			// exit(code) - exit program
 			if fn_name == "exit" && len(node.arguments) == 1 {
 				arg_val := generate_llvm_expr(ctx, node.arguments[0])
-				
+
 				// Declare exit if needed
 				exit_name := strings.clone_to_cstring("exit")
 				defer delete(exit_name)
@@ -2355,11 +2586,16 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 					exit_ty := llvm.LLVMFunctionType(llvm.LLVMVoidType(), raw_data(ptr_tys), 1, 0)
 					exit_fn = llvm.LLVMAddFunction(ctx.module, exit_name, exit_ty)
 				}
-				
+
 				args := []llvm.ValueRef{arg_val.val}
 				llvm.LLVMBuildCall2(
 					ctx.builder,
-					llvm.LLVMFunctionType(llvm.LLVMVoidType(), raw_data([]llvm.TypeRef{llvm.LLVMInt32Type()}), 1, 0),
+					llvm.LLVMFunctionType(
+						llvm.LLVMVoidType(),
+						raw_data([]llvm.TypeRef{llvm.LLVMInt32Type()}),
+						1,
+						0,
+					),
 					exit_fn,
 					raw_data(args),
 					1,
@@ -2368,10 +2604,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 				// Add unreachable after exit
 				unreachable_bb := llvm.LLVMAppendBasicBlock(ctx.fn, "unreachable")
 				llvm.LLVMPositionBuilderAtEnd(ctx.builder, unreachable_bb)
-				return ValueInfo {
-					val = arg_val.val,
-					ty = llvm.LLVMInt32Type(),
-				}
+				return ValueInfo{val = arg_val.val, ty = llvm.LLVMInt32Type()}
 			}
 		}
 
@@ -2397,7 +2630,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 					if len(node.callee.generic_args) > 0 {
 						first_arg := node.callee.generic_args[0]
 						ret_type = get_llvm_type(first_arg.name)
-						
+
 						// Also substitute param types for generic params
 						for i := 0; i < len(param_tys); i += 1 {
 							param_tys[i] = get_llvm_type(first_arg.name)
@@ -2430,12 +2663,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 				}
 			}
 
-			call_ty := llvm.LLVMFunctionType(
-				ret_type,
-				raw_data(param_tys),
-				arg_count,
-				0,
-			)
+			call_ty := llvm.LLVMFunctionType(ret_type, raw_data(param_tys), arg_count, 0)
 
 			if fn_val == nil {
 				fn_val = llvm.LLVMAddFunction(ctx.module, callee_name_c, call_ty)
@@ -2492,12 +2720,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 				}
 			}
 
-			call_ty := llvm.LLVMFunctionType(
-				ret_type,
-				raw_data(param_tys),
-				arg_count,
-				0,
-			)
+			call_ty := llvm.LLVMFunctionType(ret_type, raw_data(param_tys), arg_count, 0)
 
 			if fn_val == nil {
 				fn_val = llvm.LLVMAddFunction(ctx.module, fn_name_c, call_ty)

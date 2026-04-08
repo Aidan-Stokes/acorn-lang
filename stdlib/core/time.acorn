@@ -1,0 +1,3 @@
+// Time utilities
+time :: fn() -> int
+sleep :: fn(ms: int)

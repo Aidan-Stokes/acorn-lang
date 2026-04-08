@@ -1,0 +1,6 @@
+// OS utilities
+get_env :: fn(name: string) -> string
+exit :: fn(code: int)
+get_cwd :: fn() -> string
+get_pid :: fn() -> int
+get_hostname :: fn() -> string
