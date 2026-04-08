@@ -1,0 +1,11 @@
+import "core:fmt"
+import "core:arrays"
+
+main :: fn() -> int {
+    arr <- [1, 2, 3, 4, 5]
+    first_elem <- arr[0]
+    fmt.println(first_elem)
+    l <- arrays.len(arr)
+    fmt.println(l)
+    return 0
+}

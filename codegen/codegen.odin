@@ -58,6 +58,7 @@ ValueInfo :: struct {
 	ty:          llvm.TypeRef,
 	base_type:   string, // For pointer types: the underlying type name (e.g., "float")
 	struct_type: string, // For struct values: the struct type name
+	array_len:   int,    // For array values: the length
 }
 
 VarInfo :: struct {
@@ -71,6 +72,7 @@ Var_Entry :: struct {
 	ty:          llvm.TypeRef,
 	base_type:   string, // For pointers: the underlying type name (e.g., "int", "float")
 	struct_type: string, // For struct variables: the struct type name
+	array_len:  int,    // For array variables: the length
 }
 
 CompilerCtx :: struct {
@@ -92,6 +94,7 @@ add_var :: proc(
 	ty: llvm.TypeRef,
 	base_type := "",
 	struct_type := "",
+	array_len := 0,
 ) {
 	for i in 0 ..< len(ctx.vars) {
 		if ctx.vars[i].name == name {
@@ -99,6 +102,7 @@ add_var :: proc(
 			ctx.vars[i].ty = ty
 			ctx.vars[i].base_type = base_type
 			ctx.vars[i].struct_type = struct_type
+			ctx.vars[i].array_len = array_len
 			return
 		}
 	}
@@ -110,6 +114,7 @@ add_var :: proc(
 			ty = ty,
 			base_type = base_type,
 			struct_type = struct_type,
+			array_len = array_len,
 		},
 	)
 }
@@ -122,15 +127,16 @@ find_var :: proc(
 	ty: llvm.TypeRef,
 	base_type: string,
 	struct_type: string,
+	array_len: int,
 	found: bool,
 ) {
 	for i := len(ctx.vars) - 1; i >= 0; i -= 1 {
 		entry := ctx.vars[i]
 		if entry.name == name {
-			return entry.ptr, entry.ty, entry.base_type, entry.struct_type, true
+			return entry.ptr, entry.ty, entry.base_type, entry.struct_type, entry.array_len, true
 		}
 	}
-	return nil, nil, "", "", false
+	return nil, nil, "", "", 0, false
 }
 
 find_struct_field_index :: proc(struct_name: string, field_name: string) -> int {
@@ -955,6 +961,8 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 		base_type := node.return_type.base_type
 
 		elem_ty := get_llvm_type(base_type)
+
+		elem_ty := get_llvm_type(base_type)
 		is_struct := false
 		is_array := false
 		if _, ok := struct_types[base_type]; ok {
@@ -997,7 +1005,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				delete(var_name_c)
 				loaded := llvm.LLVMBuildLoad2(ctx.builder, elem_ty, v.val, "array_copy")
 				llvm.LLVMBuildStore(ctx.builder, loaded, alloca)
-				add_var(ctx, node.name, alloca, elem_ty, "", base_type)
+				add_var(ctx, node.name, alloca, elem_ty, "", base_type, v.array_len)
 			} else {
 				var_name_c := strings.clone_to_cstring(node.name)
 				alloca := llvm.LLVMBuildAlloca(ctx.builder, elem_ty, var_name_c)
@@ -1006,7 +1014,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 					v.val = convert_type(ctx, v.val, v.ty, elem_ty)
 				}
 				llvm.LLVMBuildStore(ctx.builder, v.val, alloca)
-				add_var(ctx, node.name, alloca, elem_ty, "", "")
+				add_var(ctx, node.name, alloca, elem_ty, "", "", v.array_len)
 			}
 		} else {
 			var_name_c := strings.clone_to_cstring(node.name)
@@ -1014,9 +1022,9 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 			delete(var_name_c)
 			llvm.LLVMBuildStore(ctx.builder, to_const0(elem_ty), alloca)
 			if is_struct || base_type != "" {
-				add_var(ctx, node.name, alloca, elem_ty, "", base_type)
+				add_var(ctx, node.name, alloca, elem_ty, "", base_type, 0)
 			} else if is_array {
-				add_var(ctx, node.name, alloca, elem_ty, "", base_type)
+				add_var(ctx, node.name, alloca, elem_ty, "", base_type, 0)
 			} else {
 				add_var(ctx, node.name, alloca, elem_ty, "", "")
 			}
@@ -1051,7 +1059,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 	}
 
 	if node.kind == .Assign_Stmt {
-		vi_ptr, vi_ty, base_type, struct_type_name, found := find_var(ctx, node.target)
+		vi_ptr, vi_ty, base_type, struct_type_name, _, found := find_var(ctx, node.target)
 
 		if !found {
 			v := generate_llvm_expr(ctx, node.value)
@@ -1082,7 +1090,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				delete(target_c)
 			}
 			// Preserve struct_type
-			add_var(ctx, node.target, vi_ptr, vi_ty, "", v.struct_type)
+			add_var(ctx, node.target, vi_ptr, vi_ty, "", v.struct_type, v.array_len)
 
 			if v.ty != vi_ty {
 				if vi_ty == llvm.LLVMDoubleType() && v.ty == llvm.LLVMInt32Type() {
@@ -1106,7 +1114,7 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 				}
 			}
 			llvm.LLVMBuildStore(ctx.builder, v.val, vi_ptr)
-			add_var(ctx, node.target, vi_ptr, vi_ty, base_type, struct_type_name)
+			add_var(ctx, node.target, vi_ptr, vi_ty, base_type, struct_type_name, v.array_len)
 		}
 		return false
 	}
@@ -1945,7 +1953,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 				llvm.LLVMPointerType(llvm.LLVMInt32Type(), 0),
 				"null",
 			)
-			return ValueInfo{val = null_ptr, ty = llvm.LLVMPointerType(llvm.LLVMInt32Type(), 0)}
+			return ValueInfo{val = null_ptr, ty = llvm.LLVMPointerType(llvm.LLVMInt32Type(), 0), array_len = 0}
 		}
 
 		array_ptr := llvm.LLVMBuildArrayAlloca(
@@ -1978,7 +1986,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 			llvm.LLVMBuildStore(ctx.builder, elem_val.val, elem_ptr)
 		}
 
-		return ValueInfo{val = array_ptr, ty = llvm.LLVMPointerType(llvm.LLVMInt32Type(), 0)}
+		return ValueInfo{val = array_ptr, ty = llvm.LLVMPointerType(llvm.LLVMInt32Type(), 0), array_len = elem_count}
 
 	case .Struct_Literal:
 		struct_ty := get_llvm_type(node.name)
@@ -2085,7 +2093,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		}
 		struct_name := ""
 		if node.object.kind == .Ident {
-			_, _, _, struct_name, _ = find_var(ctx, node.object.name)
+			_, _, _, struct_name, _, _ = find_var(ctx, node.object.name)
 		} else if obj_val.struct_type != "" {
 			struct_name = obj_val.struct_type
 		}
@@ -2155,7 +2163,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		return ValueInfo{val = loaded_val, ty = llvm.LLVMInt32Type()}
 
 	case .Ident:
-		vi_ptr, vi_ty, vi_base_type, vi_struct_type, found := find_var(ctx, node.name)
+		vi_ptr, vi_ty, vi_base_type, vi_struct_type, _, found := find_var(ctx, node.name)
 		if !found {
 			if gv, ok := global_consts[node.name]; ok {
 				init_val := llvm.LLVMGetInitializer(gv)
@@ -2221,7 +2229,7 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		if node.operator == "&" {
 			// For address-of, we need to find the variable's storage pointer
 			if node.operand.kind == .Ident {
-				var_ptr, var_ty, var_base_type, _, found := find_var(ctx, node.operand.name)
+				var_ptr, var_ty, var_base_type, _, _, found := find_var(ctx, node.operand.name)
 				if found {
 					// Create pointer to the underlying type
 					elem_ty := var_ty
@@ -2384,12 +2392,46 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 		// Handle fmt.X calls
 		if node.callee != nil && node.callee.kind == .Member_Expr {
 			obj := node.callee.object
-			if obj != nil && obj.kind == .Ident && obj.name == "fmt" {
+			if obj != nil && obj.kind == .Ident {
+				// Handle fmt.X calls
+				if obj.name == "fmt" {
+					fn_name := node.callee.field
+					if fn_name == "print" || fn_name == "println" {
+						return ValueInfo {
+							val = generate_llvm_print(ctx, node.arguments),
+							ty = llvm.LLVMInt32Type(),
+						}
+					}
+				}
+			}
+			// Handle arrays.X calls
+			if obj != nil && obj.kind == .Ident && obj.name == "arrays" {
 				fn_name = node.callee.field
-				if fn_name == "print" || fn_name == "println" {
-					return ValueInfo {
-						val = generate_llvm_print(ctx, node.arguments),
-						ty = llvm.LLVMInt32Type(),
+				if fn_name == "len" && len(node.arguments) == 1 {
+					arg := node.arguments[0]
+					// First check if it's a variable - get array_len from var entry
+					if arg.kind == .Ident {
+						_, _, _, _, arr_len, found := find_var(ctx, arg.name)
+						if found && arr_len > 0 {
+							len_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(arr_len), 0)
+							return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+						}
+					}
+					// Check for string literal
+					if arg.kind == .String_Literal {
+						str_node := arg
+						len_val := llvm.LLVMConstInt(
+							llvm.LLVMInt32Type(),
+							u64(len(str_node.string_value)),
+							0,
+						)
+						return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+					}
+					// Check for array literal - get array_len from expr
+					av := generate_llvm_expr(ctx, arg)
+					if av.array_len > 0 {
+						len_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(av.array_len), 0)
+						return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
 					}
 				}
 			}
@@ -2513,16 +2555,32 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 				result_val := generate_llvm_input(ctx)
 				return ValueInfo{val = result_val.val, ty = result_val.ty}
 			}
-			if fn_name == "len" &&
-			   len(node.arguments) == 1 &&
-			   node.arguments[0].kind == .String_Literal {
-				str_node := node.arguments[0]
-				len_val := llvm.LLVMConstInt(
-					llvm.LLVMInt32Type(),
-					u64(len(str_node.string_value)),
-					0,
-				)
-				return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+			if fn_name == "len" && len(node.arguments) == 1 {
+				arg := node.arguments[0]
+				// Handle string literal
+				if arg.kind == .String_Literal {
+					str_node := arg
+					len_val := llvm.LLVMConstInt(
+						llvm.LLVMInt32Type(),
+						u64(len(str_node.string_value)),
+						0,
+					)
+					return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+				}
+				// Handle array access - get from array_len field in type
+				av := generate_llvm_expr(ctx, arg)
+				if av.array_len > 0 {
+					len_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(av.array_len), 0)
+					return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+				}
+				// Handle variable - check in vars
+				if arg.kind == .Ident {
+					_, _, _, _, arr_len, found := find_var(ctx, arg.name)
+					if found && arr_len > 0 {
+						len_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(arr_len), 0)
+						return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+					}
+				}
 			}
 			if fn_name == "read_file" &&
 			   len(node.arguments) == 1 &&

@@ -1,0 +1,9 @@
+import "core:fmt"
+
+main :: fn() -> int {
+    arr <- [1, 2, 3, 4, 5]
+    // Test array literal - should work
+    l <- len([1, 2, 3])
+    fmt.println(l)
+    return 0
+}
