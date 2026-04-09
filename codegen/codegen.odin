@@ -961,8 +961,6 @@ generate_llvm_stmt :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> bool {
 		base_type := node.return_type.base_type
 
 		elem_ty := get_llvm_type(base_type)
-
-		elem_ty := get_llvm_type(base_type)
 		is_struct := false
 		is_array := false
 		if _, ok := struct_types[base_type]; ok {
@@ -2435,6 +2433,49 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 					}
 				}
 			}
+			// Handle strings.X calls
+			if obj != nil && obj.kind == .Ident && obj.name == "strings" {
+				fn_name = node.callee.field
+				if fn_name == "len" && len(node.arguments) == 1 {
+					arg := node.arguments[0]
+					// Handle string literal - compile-time length
+					if arg.kind == .String_Literal {
+						str_node := arg
+						len_val := llvm.LLVMConstInt(
+							llvm.LLVMInt32Type(),
+							u64(len(str_node.string_value)),
+							0,
+						)
+						return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+					}
+					// Handle variable - use strlen at runtime
+					if arg.kind == .Ident {
+						str_ptr, _, _, _, _, found := find_var(ctx, arg.name)
+						if found && str_ptr != nil {
+							strlen_name := strings.clone_to_cstring("strlen")
+							defer delete(strlen_name)
+							strlen_fn := llvm.LLVMGetNamedFunction(ctx.module, strlen_name)
+							if strlen_fn == nil {
+								i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+								strlen_ty := llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{i8ptr}), 1, 0)
+								strlen_fn = llvm.LLVMAddFunction(ctx.module, strlen_name, strlen_ty)
+							}
+							// Load the string pointer from the variable
+							str_ptr_loaded := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), str_ptr, "str_ptr")
+							strlen_val := llvm.LLVMBuildCall2(
+								ctx.builder,
+								llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}), 1, 0),
+								strlen_fn,
+								raw_data([]llvm.ValueRef{str_ptr_loaded}),
+								1, "strlen_val",
+							)
+							// Convert i64 to i32
+							trunc_val := llvm.LLVMBuildTrunc(ctx.builder, strlen_val, llvm.LLVMInt32Type(), "strlen_i32")
+							return ValueInfo{val = trunc_val, ty = llvm.LLVMInt32Type()}
+						}
+					}
+				}
+			}
 			// Handle os.X calls
 			if obj != nil && obj.kind == .Ident && obj.name == "os" {
 				fn_name = node.callee.field
@@ -2486,6 +2527,65 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 					)
 					return ValueInfo{val = env_val, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
 				}
+				if fn_name == "get_cwd" {
+					getcwd_name := strings.clone_to_cstring("getcwd")
+					defer delete(getcwd_name)
+					getcwd_fn := llvm.LLVMGetNamedFunction(ctx.module, getcwd_name)
+					if getcwd_fn == nil {
+						i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+						getcwd_ty := llvm.LLVMFunctionType(i8ptr, raw_data([]llvm.TypeRef{i8ptr, llvm.LLVMInt64Type()}), 2, 0)
+						getcwd_fn = llvm.LLVMAddFunction(ctx.module, getcwd_name, getcwd_ty)
+					}
+					// Allocate buffer for current working directory
+					buf_ptr := llvm.LLVMBuildArrayAlloca(ctx.builder, llvm.LLVMInt8Type(), llvm.LLVMConstInt(llvm.LLVMInt64Type(), 4096, 0), "cwd_buf")
+					buf_size := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 4096, 0)
+					cwd_val := llvm.LLVMBuildCall2(
+						ctx.builder,
+						llvm.LLVMFunctionType(llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), llvm.LLVMInt64Type()}), 2, 0),
+						getcwd_fn,
+						raw_data([]llvm.ValueRef{buf_ptr, buf_size}),
+						1, "cwd_val",
+					)
+					return ValueInfo{val = cwd_val, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+				}
+				if fn_name == "get_pid" {
+					getpid_name := strings.clone_to_cstring("getpid")
+					defer delete(getpid_name)
+					getpid_fn := llvm.LLVMGetNamedFunction(ctx.module, getpid_name)
+					if getpid_fn == nil {
+						getpid_ty := llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{}), 0, 0)
+						getpid_fn = llvm.LLVMAddFunction(ctx.module, getpid_name, getpid_ty)
+					}
+					pid_val := llvm.LLVMBuildCall2(
+						ctx.builder,
+						llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{}), 0, 0),
+						getpid_fn,
+						raw_data([]llvm.ValueRef{}),
+						0, "pid_val",
+					)
+					trunc_val := llvm.LLVMBuildTrunc(ctx.builder, pid_val, llvm.LLVMInt32Type(), "pid_i32")
+					return ValueInfo{val = trunc_val, ty = llvm.LLVMInt32Type()}
+				}
+				if fn_name == "get_hostname" {
+					gethostname_name := strings.clone_to_cstring("gethostname")
+					defer delete(gethostname_name)
+					gethostname_fn := llvm.LLVMGetNamedFunction(ctx.module, gethostname_name)
+					if gethostname_fn == nil {
+						i8ptr := llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)
+						gethostname_ty := llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{i8ptr, llvm.LLVMInt64Type()}), 2, 0)
+						gethostname_fn = llvm.LLVMAddFunction(ctx.module, gethostname_name, gethostname_ty)
+					}
+					buf_ptr := llvm.LLVMBuildArrayAlloca(ctx.builder, llvm.LLVMInt8Type(), llvm.LLVMConstInt(llvm.LLVMInt64Type(), 256, 0), "hostname_buf")
+					buf_size := llvm.LLVMConstInt(llvm.LLVMInt64Type(), 256, 0)
+					hostname_val := llvm.LLVMBuildCall2(
+						ctx.builder,
+						llvm.LLVMFunctionType(llvm.LLVMInt32Type(), raw_data([]llvm.TypeRef{llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), llvm.LLVMInt64Type()}), 2, 0),
+						gethostname_fn,
+						raw_data([]llvm.ValueRef{buf_ptr, buf_size}),
+						1, "hostname_val",
+					)
+					return ValueInfo{val = buf_ptr, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+				}
 			}
 			// Handle time.X calls
 			if obj != nil && obj.kind == .Ident && obj.name == "time" {
@@ -2519,7 +2619,6 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 						time_ty := llvm.LLVMFunctionType(llvm.LLVMInt64Type(), raw_data([]llvm.TypeRef{i8ptr}), 1, 0)
 						time_fn = llvm.LLVMAddFunction(ctx.module, time_name, time_ty)
 					}
-					// Use alloca to create null pointer
 					null_ptr_alloca := llvm.LLVMBuildAlloca(ctx.builder, llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), "null_ptr")
 					empty_args := []llvm.ValueRef{null_ptr_alloca}
 					time_val := llvm.LLVMBuildCall2(
@@ -2530,6 +2629,65 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 						1, "time_val",
 					)
 					return ValueInfo{val = time_val, ty = llvm.LLVMInt64Type()}
+				}
+			}
+			// Handle strings.X calls (more functions)
+			if obj != nil && obj.kind == .Ident && obj.name == "strings" {
+				fn_name = node.callee.field
+					// strings.contains(s, substr)
+				if fn_name == "contains" && len(node.arguments) == 2 {
+					arg_s := node.arguments[0]
+					arg_substr := node.arguments[1]
+					if arg_s.kind == .String_Literal && arg_substr.kind == .String_Literal {
+						result := strings.contains(arg_s.string_value, arg_substr.string_value)
+						val: llvm.ValueRef
+						if result {
+							val = llvm.LLVMConstInt(llvm.LLVMInt1Type(), 1, 0)
+						} else {
+							val = llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0)
+						}
+						return ValueInfo{val = val, ty = llvm.LLVMInt1Type()}
+					}
+				}
+				// strings.starts_with(s, prefix)
+				if fn_name == "starts_with" && len(node.arguments) == 2 {
+					arg_s := node.arguments[0]
+					arg_prefix := node.arguments[1]
+					if arg_s.kind == .String_Literal && arg_prefix.kind == .String_Literal {
+						result := strings.starts_with(arg_s.string_value, arg_prefix.string_value)
+						val: llvm.ValueRef
+						if result {
+							val = llvm.LLVMConstInt(llvm.LLVMInt1Type(), 1, 0)
+						} else {
+							val = llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0)
+						}
+						return ValueInfo{val = val, ty = llvm.LLVMInt1Type()}
+					}
+				}
+				// strings.ends_with(s, suffix)
+				if fn_name == "ends_with" && len(node.arguments) == 2 {
+					arg_s := node.arguments[0]
+					arg_suffix := node.arguments[1]
+					if arg_s.kind == .String_Literal && arg_suffix.kind == .String_Literal {
+						result := strings.ends_with(arg_s.string_value, arg_suffix.string_value)
+						val: llvm.ValueRef
+						if result {
+							val = llvm.LLVMConstInt(llvm.LLVMInt1Type(), 1, 0)
+						} else {
+							val = llvm.LLVMConstInt(llvm.LLVMInt1Type(), 0, 0)
+						}
+						return ValueInfo{val = val, ty = llvm.LLVMInt1Type()}
+					}
+				}
+				// strings.index_any(s, substr) - index of first occurrence
+				if fn_name == "index_of" && len(node.arguments) == 2 {
+					arg_s := node.arguments[0]
+					arg_substr := node.arguments[1]
+					if arg_s.kind == .String_Literal && arg_substr.kind == .String_Literal {
+						result := strings.index_any(arg_s.string_value, arg_substr.string_value)
+						val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(result), 0)
+						return ValueInfo{val = val, ty = llvm.LLVMInt32Type()}
+					}
 				}
 			}
 		}
