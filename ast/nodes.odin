@@ -83,6 +83,12 @@ Node :: struct {
     kind: Node_Kind,
     type: ^Type_Info,
 
+    // New type field - will be populated by type checker (from types_new.odin)
+    new_type: ^Type_New,
+
+    // Source location for error reporting
+    loc: Source_Location,
+
     int_value:    int,
     float_value:  f64,
     string_value: string,

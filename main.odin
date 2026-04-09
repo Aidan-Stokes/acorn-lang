@@ -90,6 +90,8 @@ main :: proc() {
         cli.set_allocator(mem.tracking_allocator(&tracker))
     }
 
+    common.init()
+
     cli.set_verbose(verbose)
 
     switch cmd {
@@ -138,4 +140,5 @@ main :: proc() {
     }
 
     lexer.destroy_keywords()
+    common.destroy()
 }

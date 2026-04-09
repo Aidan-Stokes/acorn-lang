@@ -5,6 +5,12 @@ import "../common"
 import "core:fmt"
 import "core:strings"
 
+// Helper to set both old and new type fields simultaneously
+set_node_type :: proc(node: ^ast.Node, t: ^ast.Type_Info) {
+    node.type = t
+    node.new_type = ast.convert_from_type_info(t)
+}
+
 Error :: struct {
     message: string,
     line:    int,
@@ -12,6 +18,18 @@ Error :: struct {
 }
 
 errors: [dynamic]Error
+
+add_error :: proc(message: string, line: int, column: int) {
+    append(&errors, Error{message = message, line = line, column = column})
+    common.add_type_error(message, line, column)
+}
+
+print_errors :: proc() {
+    for err in errors {
+        common.print_error_at(err.message, err.line, err.column)
+    }
+    common.print_errors()
+}
 
 Scope :: struct {
     vars:     map[string]^ast.Type_Info,
@@ -170,22 +188,8 @@ pop_scope :: proc() {
     }
 }
 
-add_error :: proc(message: string, line: int, column: int) {
-    append(&errors, Error{message = message, line = line, column = column})
-}
-
-print_errors :: proc() {
-    for err in errors {
-        if err.line > 0 {
-            common.colorf(.Red, "Type error at line %d, column %d: %s\n", err.line, err.column, err.message)
-        } else {
-            common.colorf(.Red, "Type error: %s\n", err.message)
-        }
-    }
-}
-
 has_errors :: proc() -> bool {
-    return len(errors) > 0
+    return len(errors) > 0 || common.has_errors()
 }
 
 lookup_var :: proc(name: string) -> ^ast.Type_Info {
@@ -321,35 +325,38 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         t := new(ast.Type_Info)
         t.kind = .Int
         t.name = "int"
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .Float_Literal:
         t := new(ast.Type_Info)
         t.kind = .Named
         t.name = "f64"
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .String_Literal:
         t := new(ast.Type_Info)
         t.kind = .String
         t.name = "string"
-        node.type = t
+        set_node_type(node, t)
+        node.new_type = ast.convert_from_type_info(t)
         return t
 
     case .Char_Literal:
         t := new(ast.Type_Info)
         t.kind = .Named
         t.name = "char"
-        node.type = t
+        set_node_type(node, t)
+        node.new_type = ast.convert_from_type_info(t)
         return t
 
     case .Bool_Literal:
         t := new(ast.Type_Info)
         t.kind = .Bool
         t.name = "bool"
-        node.type = t
+        set_node_type(node, t)
+        node.new_type = ast.convert_from_type_info(t)
         return t
 
     case .Ident:
@@ -369,7 +376,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
                 t.name = "<unknown>"
             }
         }
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .Binary_Expr:
@@ -388,7 +395,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
             t := new(ast.Type_Info)
             t.kind = .Bool
             t.name = "bool"
-            node.type = t
+            set_node_type(node, t)
             return t
         }
 
@@ -403,7 +410,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
             t := new(ast.Type_Info)
             t.kind = .Bool
             t.name = "bool"
-            node.type = t
+            set_node_type(node, t)
             return t
         }
 
@@ -423,7 +430,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         t := new(ast.Type_Info)
         t.kind = .Named
         t.name = result_name
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .Unary_Expr:
@@ -439,7 +446,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
             t := new(ast.Type_Info)
             t.kind = .Bool
             t.name = "bool"
-            node.type = t
+            set_node_type(node, t)
             return t
         }
 
@@ -521,7 +528,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         t := new(ast.Type_Info)
         t.kind = .Named
         t.name = "int"
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .Array_Literal:
@@ -533,7 +540,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         if len(node.elements) > 0 {
             t.element_type = node.elements[0].type
         }
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .Index_Expr:
@@ -545,7 +552,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         }
         t := new(ast.Type_Info)
         t.kind = .Int
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .Member_Expr:
@@ -573,7 +580,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
                         t := new(ast.Type_Info)
                         t.kind = .Int
                         t.name = "int"
-                        node.type = t
+                        set_node_type(node, t)
                         return t
                     }
                 }
@@ -607,7 +614,7 @@ check_node :: proc(node: ^ast.Node) -> ^ast.Type_Info {
         t := new(ast.Type_Info)
         t.kind = .Named
         t.name = node.name
-        node.type = t
+        set_node_type(node, t)
         return t
 
     case .Pipe_Expr:

@@ -4,6 +4,17 @@ import "core:mem"
 
 current_allocator: mem.Allocator
 
+// Global error reporter
+global_reporter: Error_Reporter
+
+init :: proc() {
+    init_reporter(&global_reporter)
+}
+
+destroy :: proc() {
+    destroy_reporter(&global_reporter)
+}
+
 set_allocator :: proc(alloc: mem.Allocator) {
     current_allocator = alloc
 }
