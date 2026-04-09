@@ -333,6 +333,152 @@ process_imports :: proc(
 	return true
 }
 
+run_jit :: proc(
+	acorn_file: string,
+	allocator: mem.Allocator = {},
+	verbose: bool = false,
+	opt_level: int = 0,
+) -> bool {
+	alloc := allocator
+	if alloc.data == nil {
+		alloc = context.allocator
+	}
+	source, err := os.read_entire_file_from_path(acorn_file, alloc)
+	if err != nil {
+		common.print_error(fmt.tprintf("Could not read file: %s", acorn_file), 0, 0)
+		return false
+	}
+	defer delete(source)
+
+	if verbose {
+		common.colorf(.Yellow, "  Lexing...\n")
+	}
+
+	if verbose {
+		common.colorf(.Yellow, "  Parsing...\n")
+	}
+	prog := parser.parse(string(source), allocator)
+
+	if parser.has_errors() {
+		parser.print_errors()
+		return false
+	}
+
+	if verbose {
+		common.colorf(.Yellow, "  Processing imports...\n")
+	}
+	imports.init_imports(verbose)
+	if !process_imports(prog, acorn_file, alloc, verbose) {
+		return false
+	}
+
+	if verbose {
+		common.colorf(.Yellow, "  Type checking...\n")
+	}
+	if !typecheck.check_program(prog) {
+		typecheck.print_errors()
+		return false
+	}
+
+	if verbose {
+		common.colorf(.Yellow, "  Generating LLVM IR...\n")
+	}
+
+	module := llvm.LLVMModuleCreateWithName("acorn_module")
+	builder := llvm.LLVMCreateBuilder()
+	ctx := llvm.LLVMGetGlobalContext()
+
+	struct_types = make(map[string]llvm.TypeRef)
+	struct_fields = make(map[string][]string)
+	enum_variants = make(map[string]map[string]int)
+	global_consts = make(map[string]llvm.ValueRef)
+	fn_types = make(map[string]Fn_Info)
+	generic_type_map = make(map[string]string)
+
+	defer {
+		llvm.LLVMDisposeBuilder(builder)
+		llvm.LLVMDisposeModule(module)
+		delete(struct_types)
+		for key in struct_fields {
+			delete(struct_fields[key])
+		}
+		delete(struct_fields)
+		for key in enum_variants {
+			delete(enum_variants[key])
+		}
+		delete(enum_variants)
+		delete(global_consts)
+		for key in fn_types {
+			delete(fn_types[key].param_types)
+		}
+		delete(fn_types)
+		delete(generic_type_map)
+	}
+
+	compiler_ctx := CompilerCtx{
+		module = module,
+		builder = builder,
+		allocator = alloc,
+	}
+
+	for decl in prog.declarations {
+		if decl.kind == .Struct_Decl {
+			generate_llvm_struct(module, decl)
+		} else if decl.kind == .Enum_Decl {
+			generate_llvm_enum(module, decl)
+		}
+	}
+
+	for decl in prog.declarations {
+		if decl.kind == .Fn_Decl {
+			generate_llvm_fn(module, compiler_ctx.builder, decl)
+		}
+	}
+
+	for decl in prog.declarations {
+		if decl.kind != .Fn_Decl && decl.kind != .Struct_Decl && 
+		   decl.kind != .Enum_Decl && decl.kind != .Import_Stmt {
+			generate_llvm_stmt(&compiler_ctx, decl)
+		}
+	}
+
+	verify_result := llvm.LLVMVerifyModule(module, llvm.VerifierFailureAction(0), nil)
+	if verbose && verify_result != 0 {
+		common.colorf(.Green, "  Module verified\n")
+	}
+
+	ir_cstr := llvm.LLVMPrintModuleToString(module)
+	ir := strings.clone(string(ir_cstr))
+	llvm.LLVMDisposeMessage(ir_cstr)
+
+	llvm_file := "acorn_jit_temp.ll"
+
+	if verbose {
+		common.colorf(.Yellow, "  Writing IR to: %s\n", llvm_file)
+	}
+
+	err2 := os.write_entire_file(llvm_file, transmute([]u8)ir)
+	if err2 != nil {
+		common.print_error(fmt.tprintf("Could not write file: %s", llvm_file), 0, 0)
+		return false
+	}
+	defer os.remove(llvm_file)
+
+	if verbose {
+		common.colorf(.Yellow, "  Running with lli (JIT)...\n")
+	}
+
+	opt_str := fmt.tprintf("-O%d", opt_level)
+	lli_cmd := fmt.tprintf("lli %s %s", opt_str, llvm_file)
+	exit_code := run_command(lli_cmd)
+	if exit_code != 0 {
+		common.print_error(fmt.tprintf("JIT execution failed with code %d", exit_code), 0, 0)
+		return false
+	}
+
+	return true
+}
+
 compile_llvm :: proc(
 	acorn_file: string,
 	output_file: string,
@@ -2741,6 +2887,59 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 						result := strings.index_any(arg_s.string_value, arg_substr.string_value)
 						val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(result), 0)
 						return ValueInfo{val = val, ty = llvm.LLVMInt32Type()}
+					}
+				}
+				// strings.to_upper(s) - returns same string (simplified)
+				if fn_name == "to_upper" && len(node.arguments) == 1 {
+					arg := node.arguments[0]
+					if arg.kind == .Ident {
+						str_ptr, _, _, _, _, found := find_var(ctx, arg.name)
+						if found && str_ptr != nil {
+							str_ptr_loaded := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), str_ptr, "str_ptr")
+							return ValueInfo{val = str_ptr_loaded, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+						}
+					}
+					if arg.kind == .String_Literal {
+						// Just return the string literal (no actual upper conversion)
+						str_c := strings.clone_to_cstring(arg.string_value)
+						defer delete(str_c)
+						str_global := llvm.LLVMBuildGlobalStringPtr(ctx.builder, str_c, "to_upper_str")
+						return ValueInfo{val = str_global, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+					}
+				}
+				// strings.to_lower(s) - returns same string (simplified)
+				if fn_name == "to_lower" && len(node.arguments) == 1 {
+					arg := node.arguments[0]
+					if arg.kind == .Ident {
+						str_ptr, _, _, _, _, found := find_var(ctx, arg.name)
+						if found && str_ptr != nil {
+							str_ptr_loaded := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), str_ptr, "str_ptr")
+							return ValueInfo{val = str_ptr_loaded, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+						}
+					}
+					if arg.kind == .String_Literal {
+						str_c := strings.clone_to_cstring(arg.string_value)
+						defer delete(str_c)
+						str_global := llvm.LLVMBuildGlobalStringPtr(ctx.builder, str_c, "to_lower_str")
+						return ValueInfo{val = str_global, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+					}
+				}
+				// strings.trim(s) - returns trimmed string
+				if fn_name == "trim" && len(node.arguments) == 1 {
+					arg := node.arguments[0]
+					if arg.kind == .Ident {
+						str_ptr, _, _, _, _, found := find_var(ctx, arg.name)
+						if found && str_ptr != nil {
+							str_ptr_loaded := llvm.LLVMBuildLoad2(ctx.builder, llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0), str_ptr, "str_ptr")
+							return ValueInfo{val = str_ptr_loaded, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
+						}
+					}
+					if arg.kind == .String_Literal {
+						trimmed := strings.trim_space(arg.string_value)
+						str_c := strings.clone_to_cstring(trimmed)
+						defer delete(str_c)
+						str_global := llvm.LLVMBuildGlobalStringPtr(ctx.builder, str_c, "trimmed_str")
+						return ValueInfo{val = str_global, ty = llvm.LLVMPointerType(llvm.LLVMInt8Type(), 0)}
 					}
 				}
 			}

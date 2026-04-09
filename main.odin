@@ -25,6 +25,7 @@ print_help :: proc() {
     fmt.println("  -c             Output object file (.o file)")
     fmt.println("  -O0, -O1, -O2, -O3")
     fmt.println("                 Set optimization level (default: -O0)")
+    fmt.println("  -J             Use JIT execution (faster for run)")
     fmt.println("  -v, --verbose  Show compilation stages")
     fmt.println("  -h, --help     Show this help message")
     fmt.println("  --version      Show version information")
@@ -79,6 +80,9 @@ main :: proc() {
             opt_level = 3
             cli.set_opt_level(3)
             i += 1
+        } else if arg == "-J" {
+            cli.set_use_jit(true)
+            i += 1
         } else if arg == "--verbose" || arg == "-vv" || arg == "-v" {
             verbose = true
             cli.set_verbose(verbose)
@@ -125,7 +129,7 @@ main :: proc() {
             fmt.println("Error: No input file specified")
             os.exit(1)
         }
-        cli.run(filename, output_file)
+        cli.run(filename, output_file, cli.get_use_jit())
     case "fmt":
         if filename == "" {
             fmt.println("Error: No input file specified")

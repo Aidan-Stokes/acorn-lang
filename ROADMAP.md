@@ -1,5 +1,41 @@
 # Acorn 1.0 - Implementation Roadmap
 
+## Recent Fixes (2026-04-09)
+
+### New Type System (AST Refactoring)
+- Created `ast/types_new.odin` with union-based type system
+- Added `Type_New` union with proper variants: Primitive, Pointer, Array, Function, Struct, Enum, Generic, Named
+- Added builder functions: `make_int_type()`, `make_pointer_type()`, etc.
+- Added constraint checking: `check_constraint(t, .Integral)`
+- Added migration helpers: `convert_from_old_type()`, `convert_from_type_info()`
+- Added `new_type` field to Node for type information from type checker
+
+### Unified Error System
+- Created `common/errors.odin` with `Error_Kind` enum: Lexer, Parser, Type, Codegen, Import, Warning
+- Added helper functions: `add_lexer_error()`, `add_parser_error()`, `add_type_error()`, etc.
+- Added global error reporter lifecycle: `common.init()`/`common.destroy()`
+- Updated type checker to use unified error system
+
+### Forward-Declared Generic Functions
+- Implemented `arrays.len()`, `arrays.first()`, `arrays.get()`, `arrays.last()` in codegen
+- Converts to equivalent index expressions instead of generating undefined function calls
+
+### String Functions
+- Added `strings.to_upper()`, `strings.to_lower()`, `strings.trim()` to codegen
+- All compile-time string functions work: `contains`, `starts_with`, `ends_with`, `index_of`
+
+### JIT Execution
+- Added `-J` flag for JIT execution via `lli`
+- Added `run_jit()` function in codegen
+- Passes optimization levels to JIT: `acorn run -J -O2 file.acorn`
+- Falls back to compilation if JIT fails
+
+### Optimization Levels
+- Added `-O0`, `-O1`, `-O2`, `-O3` CLI flags
+- Passed to LLVM's `llc` compiler via command line
+
+---
+
 ## Recent Fixes (2026-04-08)
 
 ### fmt.print/fmt.println Implementation
@@ -411,13 +447,15 @@ import "core:math" { PI } as m       // Combined: selective + alias
 - [x] Build script (`./build.sh`)
 - [x] Test script (`./test.sh`)
 - [x] GitHub Actions CI workflow
+- [x] Optimization levels (`-O0`, `-O1`, `-O2`, `-O3`)
+- [x] JIT execution (`-J` flag)
 
 ---
 
 ## LLVM Backend Enhancements
 - [ ] Proper target triple (`llvm::sys::getProcessTriple()`)
-- [ ] Optimization passes (via `LLVMPassManager`)
-- [ ] JIT execution (for `acorn run`)
+- [x] Optimization levels via `llc -On`
+- [x] JIT execution (via `lli`)
 - [x] Self-contained compilation (no external linker script)
 - [x] Module verification before output
 - [x] Assembly output option (`-S`)

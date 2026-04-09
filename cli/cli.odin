@@ -22,6 +22,7 @@ import "../typecheck"
 current_allocator: mem.Allocator
 is_verbose: bool
 opt_level: int
+use_jit: bool
 
 set_allocator :: proc(alloc: mem.Allocator) {
 	current_allocator = alloc
@@ -48,6 +49,14 @@ set_opt_level :: proc(level: int) {
 
 get_opt_level :: proc() -> int {
 	return opt_level
+}
+
+set_use_jit :: proc(jit: bool) {
+	use_jit = jit
+}
+
+get_use_jit :: proc() -> bool {
+	return use_jit
 }
 
 set_backend :: proc(backend: string) {
@@ -89,7 +98,7 @@ build :: proc(filename: string, user_output_file: string = "", output_type: comm
 	}
 }
 
-run :: proc(filename: string, user_output_file: string = "") {
+run :: proc(filename: string, user_output_file: string = "", use_jit: bool = false) {
 	alloc := get_allocator()
 
 	output_file := user_output_file
@@ -101,7 +110,18 @@ run :: proc(filename: string, user_output_file: string = "") {
 		common.colorf(.Blue, "Compiling: %s\n", filename)
 	}
 
-	success := codegen.compile_llvm(filename, output_file, alloc, is_verbose)
+	if use_jit {
+		if is_verbose {
+			common.colorf(.Yellow, "  Using JIT execution...\n")
+		}
+		success := codegen.run_jit(filename, alloc, is_verbose, opt_level)
+		if success {
+			return
+		}
+		common.print_error("JIT execution failed, falling back to compilation", 0, 0)
+	}
+
+	success := codegen.compile_llvm(filename, output_file, alloc, is_verbose, common.Output_Type.Executable, opt_level)
 
 	if !success {
 		common.print_error("Compilation failed", 0, 0)
