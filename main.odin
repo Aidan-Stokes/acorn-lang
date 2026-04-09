@@ -23,6 +23,8 @@ print_help :: proc() {
     fmt.println("  -o <file>      Set output file")
     fmt.println("  -S             Output assembly (.s file)")
     fmt.println("  -c             Output object file (.o file)")
+    fmt.println("  -O0, -O1, -O2, -O3")
+    fmt.println("                 Set optimization level (default: -O0)")
     fmt.println("  -v, --verbose  Show compilation stages")
     fmt.println("  -h, --help     Show this help message")
     fmt.println("  --version      Show version information")
@@ -44,6 +46,7 @@ main :: proc() {
     output_file := ""
     output_type := common.Output_Type.Executable
     verbose := false
+    opt_level := 0
 
     i := 1
     for i < len(args) {
@@ -59,6 +62,22 @@ main :: proc() {
             i += 1
         } else if arg == "-c" {
             output_type = common.Output_Type.Object
+            i += 1
+        } else if arg == "-O0" {
+            opt_level = 0
+            cli.set_opt_level(0)
+            i += 1
+        } else if arg == "-O1" {
+            opt_level = 1
+            cli.set_opt_level(1)
+            i += 1
+        } else if arg == "-O2" {
+            opt_level = 2
+            cli.set_opt_level(2)
+            i += 1
+        } else if arg == "-O3" {
+            opt_level = 3
+            cli.set_opt_level(3)
             i += 1
         } else if arg == "--verbose" || arg == "-vv" || arg == "-v" {
             verbose = true

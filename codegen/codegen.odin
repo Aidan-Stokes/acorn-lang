@@ -339,6 +339,7 @@ compile_llvm :: proc(
 	allocator: mem.Allocator = {},
 	verbose: bool = false,
 	output_type: common.Output_Type = .Executable,
+	opt_level: int = 0,
 ) -> bool {
 	alloc := allocator
 	if alloc.data == nil {
@@ -478,11 +479,13 @@ compile_llvm :: proc(
 
 	obj_file := "acorn_generated.o"
 
+	opt_str := fmt.tprintf("-O%d", opt_level)
+
 	if output_type == .Object {
 		if verbose {
 			common.colorf(.Yellow, "  Compiling to object file: %s\n", output_file)
 		}
-		llc_cmd := fmt.tprintf("llc --filetype=obj -o %s %s", output_file, llvm_file)
+		llc_cmd := fmt.tprintf("llc %s --filetype=obj -o %s %s", opt_str, output_file, llvm_file)
 		if run_command(llc_cmd) != 0 {
 			common.print_error("LLVM compilation failed", 0, 0)
 			return false
@@ -495,7 +498,7 @@ compile_llvm :: proc(
 		common.colorf(.Yellow, "  Linking...\n")
 	}
 
-	llc_cmd := fmt.tprintf("llc --filetype=obj -o %s %s", obj_file, llvm_file)
+	llc_cmd := fmt.tprintf("llc %s --filetype=obj -o %s %s", opt_str, obj_file, llvm_file)
 	if run_command(llc_cmd) != 0 {
 		common.print_error("LLVM compilation failed", 0, 0)
 		return false
@@ -2430,6 +2433,57 @@ generate_llvm_expr :: proc(ctx: ^CompilerCtx, node: ^ast.Node) -> ValueInfo {
 					if av.array_len > 0 {
 						len_val := llvm.LLVMConstInt(llvm.LLVMInt32Type(), u64(av.array_len), 0)
 						return ValueInfo{val = len_val, ty = llvm.LLVMInt32Type()}
+					}
+				}
+				// arrays.first(arr) - special handling, returns first element
+				if fn_name == "first" && len(node.arguments) == 1 {
+					arg := node.arguments[0]
+					arr_len := 0
+					if arg.kind == .Ident {
+						_, _, _, _, arr_len, found := find_var(ctx, arg.name)
+						if found && arr_len > 0 {
+							// Build synthetic index expression: arr[0]
+							zero_node := ast.new_int_literal(0)
+							index_node := ast.new_index(arg, zero_node)
+							result := generate_llvm_expr(ctx, index_node)
+							return result
+						}
+					}
+					// Handle array literal
+					if arg.kind == .Array_Literal {
+						av := generate_llvm_expr(ctx, arg)
+						if av.array_len > 0 && av.val != nil {
+							zero := llvm.LLVMConstInt(llvm.LLVMInt32Type(), 0, 0)
+							elem_ptr := llvm.LLVMBuildInBoundsGEP2(ctx.builder, av.ty, av.val, raw_data([]llvm.ValueRef{zero}), 1, "first_elem")
+							elem_val := llvm.LLVMBuildLoad2(ctx.builder, av.ty, elem_ptr, "first_val")
+							return ValueInfo{val = elem_val, ty = av.ty}
+						}
+					}
+				}
+				// arrays.last(arr) - special handling, returns last element
+				if fn_name == "last" && len(node.arguments) == 1 {
+					arg := node.arguments[0]
+					if arg.kind == .Ident {
+						_, _, _, _, arr_len, found := find_var(ctx, arg.name)
+						if found && arr_len > 0 {
+							last_node := ast.new_int_literal(arr_len - 1)
+							index_node := ast.new_index(arg, last_node)
+							result := generate_llvm_expr(ctx, index_node)
+							return result
+						}
+					}
+				}
+				// arrays.get(arr, index) - special handling
+				if fn_name == "get" && len(node.arguments) == 2 {
+					arg_arr := node.arguments[0]
+					arg_idx := node.arguments[1]
+					if arg_arr.kind == .Ident {
+						_, _, _, _, arr_len, found := find_var(ctx, arg_arr.name)
+						if found && arr_len > 0 {
+							index_node := ast.new_index(arg_arr, arg_idx)
+							result := generate_llvm_expr(ctx, index_node)
+							return result
+						}
 					}
 				}
 			}

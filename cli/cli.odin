@@ -21,6 +21,7 @@ import "../typecheck"
 
 current_allocator: mem.Allocator
 is_verbose: bool
+opt_level: int
 
 set_allocator :: proc(alloc: mem.Allocator) {
 	current_allocator = alloc
@@ -39,6 +40,14 @@ set_verbose :: proc(verbose: bool) {
 
 get_verbose :: proc() -> bool {
 	return is_verbose
+}
+
+set_opt_level :: proc(level: int) {
+	opt_level = level
+}
+
+get_opt_level :: proc() -> int {
+	return opt_level
 }
 
 set_backend :: proc(backend: string) {
@@ -66,7 +75,7 @@ build :: proc(filename: string, user_output_file: string = "", output_type: comm
 		common.colorf(.Blue, "Compiling: %s\n", filename)
 	}
 
-	success := codegen.compile_llvm(filename, output_file, alloc, is_verbose, output_type)
+	success := codegen.compile_llvm(filename, output_file, alloc, is_verbose, output_type, opt_level)
 
 	if !success {
 		common.print_error("Build failed", 0, 0)
